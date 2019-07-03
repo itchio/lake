@@ -13,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/itchio/headway/state"
-	"github.com/itchio/headway/counter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,7 +46,7 @@ func Test_WalkZip(t *testing.T) {
 	must(t, err)
 	defer zipWriter.Close()
 
-	_, err = compressZip(zipWriter, tmpPath, &state.Consumer{})
+	err = compressZip(zipWriter, tmpPath, &state.Consumer{})
 	must(t, err)
 
 	zipSize, err := zipWriter.Seek(0, io.SeekCurrent)
@@ -233,10 +232,8 @@ func mktestdir(t *testing.T, name string) string {
 
 func compressZip(archiveWriter io.Writer, dir string, consumer *state.Consumer) error {
 	var err error
-	var uncompressedSize int64
-	var compressedSize int64
 
-	zipWriter := zip.NewWriter(archiveCounter)
+	zipWriter := zip.NewWriter(archiveWriter)
 	defer zipWriter.Close()
 	defer func() {
 		if zipWriter != nil {
@@ -247,9 +244,9 @@ func compressZip(archiveWriter io.Writer, dir string, consumer *state.Consumer) 
 	}()
 
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		name, wErr := filepath.Rel(dir, path)
-		if wErr != nil {
-			return wErr
+		name, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
 		}
 
 		if name == "." {
@@ -259,43 +256,41 @@ func compressZip(archiveWriter io.Writer, dir string, consumer *state.Consumer) 
 
 		name = filepath.ToSlash(name)
 
-		fh, wErr := zip.FileInfoHeader(info)
-		if wErr != nil {
-			return wErr
+		fh, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
 		}
 
 		fh.Name = name
 
-		writer, wErr := zipWriter.CreateHeader(fh)
-		if wErr != nil {
-			return wErr
+		writer, err := zipWriter.CreateHeader(fh)
+		if err != nil {
+			return err
 		}
 
 		if info.IsDir() {
 			// good!
 		} else if info.Mode()&os.ModeSymlink > 0 {
-			dest, wErr := os.Readlink(path)
-			if wErr != nil {
-				return wErr
+			dest, err := os.Readlink(path)
+			if err != nil {
+				return err
 			}
 
-			_, wErr = writer.Write([]byte(dest))
-			if wErr != nil {
-				return wErr
+			_, err = writer.Write([]byte(dest))
+			if err != nil {
+				return err
 			}
 		} else if info.Mode().IsRegular() {
-			reader, wErr := os.Open(path)
-			if wErr != nil {
-				return wErr
+			reader, err := os.Open(path)
+			if err != nil {
+				return err
 			}
 			defer reader.Close()
 
-			copiedBytes, wErr := io.Copy(writer, reader)
-			if wErr != nil {
-				return wErr
+			_, err = io.Copy(writer, reader)
+			if err != nil {
+				return err
 			}
-
-			uncompressedSize += copiedBytes
 		}
 
 		return nil
@@ -303,9 +298,8 @@ func compressZip(archiveWriter io.Writer, dir string, consumer *state.Consumer) 
 
 	err = zipWriter.Close()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	zipWriter = nil
-
-	compressedSize = archiveCounter.Count()
+	return nil
 }
