@@ -46,10 +46,12 @@ github.com/itchio/httpkit v0.0.0-20190702184704-639fe5edf1f1 h1:mViP/A8hAP04YWbb
 github.com/itchio/httpkit v0.0.0-20190702184704-639fe5edf1f1/go.mod h1:l+oRs+N4hTtMdh1Nv9HipY8cvkv77HUpw3LHoJ78HAA=
 github.com/itchio/kompress v0.0.0-20190702090658-5e2558a00102 h1:QXEwRXrrx+7CxU+Y+G4GpDk4mUeHbP7grMXHhydk8qU=
 github.com/itchio/kompress v0.0.0-20190702090658-5e2558a00102/go.mod h1:YEdp1gs/LrGWRcZwYkw7MXli8lIcApwk6fgkAR+3moI=
+github.com/itchio/kompress v0.0.0-20190703125833-0b2a6b182782 h1:JCEcOVLpRZpsrbR2dne0Hj/+1rKhURckabzOgyCInpU=
 github.com/itchio/kompress v0.0.0-20190703125833-0b2a6b182782/go.mod h1:YEdp1gs/LrGWRcZwYkw7MXli8lIcApwk6fgkAR+3moI=
 github.com/itchio/randsource v0.0.0-20190702184213-a7635a4cb94b/go.mod h1:lKWkyaS6DHSVoxVLw7mIeD+po2Kvwv1Hiy8+7VR1zZc=
 github.com/klauspost/compress v1.7.1 h1:VRD0WLa8rweLB7alA5WMSVkoAtrI8xou5RrNd4JUlR0=
 github.com/klauspost/compress v1.7.1/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
+github.com/klauspost/compress v1.8.2 h1:Bx0qjetmNjdFXASH02NSAREKpiaDwkO1DRZ3dV2KCcs=
 github.com/klauspost/compress v1.8.2/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
 github.com/klauspost/cpuid v1.2.1 h1:vJi+O/nMdFt0vqm8NZBI6wzALWdA2X+egi0ogNyrC/w=
 github.com/klauspost/cpuid v1.2.1/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=

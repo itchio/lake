@@ -10,8 +10,8 @@ import (
 
 	"github.com/itchio/arkive/zip"
 
-	"github.com/itchio/lake/tlc"
 	"github.com/itchio/lake"
+	"github.com/itchio/lake/tlc"
 	"github.com/pkg/errors"
 )
 
@@ -107,7 +107,7 @@ func (cfp *ZipPool) GetReader(fileIndex int64) (io.Reader, error) {
 				}
 				fmt.Println()
 			}
-			return nil, errors.Wrap(os.ErrNotExist, relPath)
+			return nil, errors.WithStack(errors.Errorf("file not found in zip: %s", relPath))
 		}
 
 		reader, err := f.Open()
