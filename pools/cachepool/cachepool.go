@@ -2,9 +2,10 @@ package cachepool
 
 import (
 	"io"
+	"sync"
 
-	"github.com/itchio/lake/tlc"
 	"github.com/itchio/lake"
+	"github.com/itchio/lake/tlc"
 	"github.com/pkg/errors"
 )
 
@@ -13,7 +14,9 @@ type CachePool struct {
 	source    lake.Pool
 	cache     lake.WritablePool
 
-	fileChans []chan struct{}
+	fileChans     []chan struct{}
+	shutdownErr   error
+	shutdownMutex sync.Mutex
 }
 
 var _ lake.Pool = (*CachePool)(nil)
@@ -39,6 +42,36 @@ func New(c *tlc.Container, source lake.Pool, cache lake.WritablePool) *CachePool
 // if it returns nil, all future GetRead{Seek,}er calls for
 // this index will succeed (and all pending calls will unblock)
 func (cp *CachePool) Preload(fileIndex int64) error {
+	err := cp.doPreload(fileIndex)
+	if err != nil {
+		cp.shutdown(err)
+		return err
+	}
+
+	return nil
+}
+
+func (cp *CachePool) shutdown(err error) {
+	cp.shutdownMutex.Lock()
+	defer cp.shutdownMutex.Unlock()
+
+	if cp.shutdownErr != nil {
+		return
+	}
+	cp.shutdownErr = err
+
+	for _, channel := range cp.fileChans {
+		select {
+		case <-channel:
+			// already preloaded
+		default:
+			// close
+			close(channel)
+		}
+	}
+}
+
+func (cp *CachePool) doPreload(fileIndex int64) error {
 	channel := cp.fileChans[int(fileIndex)]
 
 	select {
@@ -78,21 +111,37 @@ func (cp *CachePool) Preload(fileIndex int64) error {
 	return nil
 }
 
-// GetReader returns a reader for the file at index fileIndex,
-// once the file has been preloaded successfully.
-func (cp *CachePool) GetReader(fileIndex int64) (io.Reader, error) {
+func (cp *CachePool) waitFor(fileIndex int64) error {
 	// this will block until the channel is closed,
 	// or immediately succeed if it's already closed
 	<-cp.fileChans[fileIndex]
+
+	cp.shutdownMutex.Lock()
+	defer cp.shutdownMutex.Unlock()
+	if cp.shutdownErr != nil {
+		return errors.WithMessage(cp.shutdownErr, "cache pool was shut down")
+	}
+
+	return nil
+}
+
+// GetReader returns a reader for the file at index fileIndex,
+// once the file has been preloaded successfully.
+func (cp *CachePool) GetReader(fileIndex int64) (io.Reader, error) {
+	err := cp.waitFor(fileIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	return cp.cache.GetReader(fileIndex)
 }
 
 // GetReadSeeker is a version of GetReader that returns an io.ReadSeeker
 func (cp *CachePool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
-	// this will block until the channel is closed,
-	// or immediately succeed if it's already closed
-	<-cp.fileChans[fileIndex]
+	err := cp.waitFor(fileIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	return cp.cache.GetReadSeeker(fileIndex)
 }
@@ -104,6 +153,8 @@ func (cp *CachePool) GetSize(fileIndex int64) int64 {
 // Close attempts to close both the source and the cache
 // and relays any error it encounters
 func (cp *CachePool) Close() error {
+	cp.shutdown(errors.New("closed"))
+
 	err := cp.source.Close()
 	if err != nil {
 		return errors.WithStack(err)

@@ -15,6 +15,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var verboseZipPool = os.Getenv("VERBOSE_ZIP_POOL") == "1"
+
 // ZipPool implements the lake.ZipPool interface based on a Container
 type ZipPool struct {
 	container *tlc.Container
@@ -100,7 +102,7 @@ func (cfp *ZipPool) GetReader(fileIndex int64) (io.Reader, error) {
 		relPath := cfp.GetRelativePath(fileIndex)
 		f := cfp.fmap[relPath]
 		if f == nil {
-			if os.Getenv("VERBOSE_ZIP_POOL") != "" {
+			if verboseZipPool {
 				fmt.Printf("\nzip contents:\n")
 				for k := range cfp.fmap {
 					fmt.Printf("\n- %s", k)
