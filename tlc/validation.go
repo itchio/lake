@@ -11,9 +11,9 @@ type humanPrintable interface {
 	ToString() string
 }
 
-// CheckSanity verifies that the container doesn't contain wildly invalid
+// Validate verifies that the container doesn't contain wildly invalid
 // stuff, like a directory and a file having the same name
-func (container *Container) CheckSanity() error {
+func (container *Container) Validate() error {
 	paths := make(map[string]humanPrintable)
 
 	type errorBuffer struct {

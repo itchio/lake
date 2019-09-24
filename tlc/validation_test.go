@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_Sanity(t *testing.T) {
+func Test_Validate(t *testing.T) {
 	assert := assert.New(t)
 
 	c := &tlc.Container{
@@ -29,12 +29,12 @@ func Test_Sanity(t *testing.T) {
 
 	var err error
 
-	err = c.CheckSanity()
+	err = c.Validate()
 	assert.Error(err)
 	t.Logf("As expected:\n%s", err)
 
 	c.Dirs[0].Path = "NowADir"
-	err = c.CheckSanity()
+	err = c.Validate()
 	assert.NoError(err)
 
 	c.Symlinks = append(c.Symlinks, &tlc.Symlink{
@@ -43,7 +43,7 @@ func Test_Sanity(t *testing.T) {
 		Dest: "/etc/hosts",
 	})
 
-	err = c.CheckSanity()
+	err = c.Validate()
 	assert.Error(err)
 	t.Logf("As expected:\n%s", err)
 }
