@@ -51,6 +51,12 @@ func (cp *CachePool) Preload(fileIndex int64) error {
 	return nil
 }
 
+// Shuts down cache pool completely
+func (cp *CachePool) Shutdown() {
+	cp.shutdown(errors.New("shut down explicitly"))
+	cp.Close()
+}
+
 func (cp *CachePool) shutdown(err error) {
 	cp.shutdownMutex.Lock()
 	defer cp.shutdownMutex.Unlock()
@@ -151,10 +157,10 @@ func (cp *CachePool) GetSize(fileIndex int64) int64 {
 }
 
 // Close attempts to close both the source and the cache
-// and relays any error it encounters
+// and relays any error it encounters.
+// Note: this does *not* shut down the cache pool, it just
+// closes all the readers.
 func (cp *CachePool) Close() error {
-	cp.shutdown(errors.New("closed"))
-
 	err := cp.source.Close()
 	if err != nil {
 		return errors.WithStack(err)
