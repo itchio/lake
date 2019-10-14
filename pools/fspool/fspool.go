@@ -139,7 +139,7 @@ func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
 }
 
 // Stat stats one of the container's file
-func (cfp *FsPool) Stat(fileIndex int64, size int64) (os.FileInfo, error) {
+func (cfp *FsPool) Stat(fileIndex int64) (os.FileInfo, error) {
 	return os.Stat(cfp.GetPath(fileIndex))
 }
 
