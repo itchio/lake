@@ -138,6 +138,11 @@ func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
 	return cfp.getWriter(fileIndex)
 }
 
+// Stat stats one of the container's file
+func (cfp *FsPool) Stat(fileIndex int64, size int64) (os.FileInfo, error) {
+	return os.Stat(cfp.GetPath(fileIndex))
+}
+
 // GetWriterAndTruncate returns a writer for one of the container's file,
 // and it truncates it to the given size.
 func (cfp *FsPool) GetWriterAndTruncate(fileIndex int64, size int64) (io.WriteCloser, error) {

@@ -1,6 +1,9 @@
 package lake
 
-import "io"
+import (
+	"io"
+	"os"
+)
 
 // A Pool gives read+seek access to an ordered list of files, by index
 type Pool interface {
@@ -21,5 +24,6 @@ type WritablePool interface {
 type TruncatablePool interface {
 	WritablePool
 
+	Stat(fileIndex int64) (os.FileInfo, error)
 	GetWriterAndTruncate(fileIndex int64, size int64) (io.WriteCloser, error)
 }
