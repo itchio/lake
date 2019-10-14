@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/itchio/lake/tlc"
 	"github.com/itchio/lake"
+	"github.com/itchio/lake/tlc"
 )
 
 type SingleFilePool struct {

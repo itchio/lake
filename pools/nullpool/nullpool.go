@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/itchio/lake/tlc"
 	"github.com/itchio/lake"
+	"github.com/itchio/lake/tlc"
 )
 
 type NullPool struct {

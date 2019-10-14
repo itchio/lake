@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/itchio/lake/tlc"
 	"github.com/itchio/lake"
+	"github.com/itchio/lake/tlc"
 	"github.com/pkg/errors"
 )
 
@@ -33,6 +33,7 @@ type FsPool struct {
 
 var _ lake.Pool = (*FsPool)(nil)
 var _ lake.WritablePool = (*FsPool)(nil)
+var _ lake.TruncatablePool = (*FsPool)(nil)
 
 // ReadCloseSeeker unifies io.Reader, io.Seeker, and io.Closer
 type ReadCloseSeeker interface {
@@ -41,7 +42,7 @@ type ReadCloseSeeker interface {
 	io.Closer
 }
 
-// NewFsPool creates a new FsPool from the given Container
+// New creates a new FsPool from the given Container
 // metadata and a base path on-disk to allow reading from files.
 func New(c *tlc.Container, basePath string) *FsPool {
 	return &FsPool{
@@ -132,7 +133,29 @@ func (cfp *FsPool) Close() error {
 	return nil
 }
 
+// GetWriter returns a writer for one of the container's file
 func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
+	return cfp.getWriter(fileIndex)
+}
+
+// GetWriterAndTruncate returns a writer for one of the container's file,
+// and it truncates it to the given size.
+func (cfp *FsPool) GetWriterAndTruncate(fileIndex int64, size int64) (io.WriteCloser, error) {
+	f, err := cfp.getWriter(fileIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	err = f.Truncate(size)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+
+	return f, nil
+}
+
+func (cfp *FsPool) getWriter(fileIndex int64) (*os.File, error) {
 	path := cfp.GetPath(fileIndex)
 
 	err := os.MkdirAll(filepath.Dir(path), os.FileMode(0755))
