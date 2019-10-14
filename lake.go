@@ -19,7 +19,7 @@ type WritablePool interface {
 
 // A TruncatablePool adds the ability to truncate files
 type TruncatablePool interface {
-	Pool
+	WritablePool
 
 	GetWriterAndTruncate(fileIndex int64, size int64) (io.WriteCloser, error)
 }
