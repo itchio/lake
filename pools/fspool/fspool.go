@@ -12,7 +12,7 @@ import (
 
 const (
 	// ModeMask is or'd with the permission files being opened
-	ModeMask = 0644
+	ModeMask = 0o644
 )
 
 type fsEntryReader interface {

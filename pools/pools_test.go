@@ -23,7 +23,7 @@ func Test_Close(t *testing.T) {
 	defer os.RemoveAll(tmpPath)
 
 	contents := []byte("Hello!")
-	err = ioutil.WriteFile(filepath.Join(tmpPath, "hello.txt"), contents, os.FileMode(0644))
+	err = ioutil.WriteFile(filepath.Join(tmpPath, "hello.txt"), contents, os.FileMode(0o644))
 	must(t, err)
 
 	container, err := tlc.WalkDir(tmpPath, &tlc.WalkOpts{})

@@ -208,7 +208,7 @@ func mktestdir(t *testing.T, name string) string {
 
 	for _, entry := range regulars {
 		fullPath := filepath.Join(tmpPath, entry.Path)
-		must(t, os.MkdirAll(filepath.Dir(fullPath), os.FileMode(0777)))
+		must(t, os.MkdirAll(filepath.Dir(fullPath), os.FileMode(0o777)))
 		file, err := os.Create(fullPath)
 		must(t, err)
 

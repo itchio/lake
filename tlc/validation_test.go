@@ -15,14 +15,14 @@ func Test_Validate(t *testing.T) {
 		Files: []*tlc.File{
 			&tlc.File{
 				Path: "MonoBleedingEdge",
-				Mode: 0644,
+				Mode: 0o644,
 				Size: 0,
 			},
 		},
 		Dirs: []*tlc.Dir{
 			&tlc.Dir{
 				Path: "MonoBleedingEdge",
-				Mode: 0755 | uint32(os.ModeDir),
+				Mode: 0o755 | uint32(os.ModeDir),
 			},
 		},
 	}
@@ -39,7 +39,7 @@ func Test_Validate(t *testing.T) {
 
 	c.Symlinks = append(c.Symlinks, &tlc.Symlink{
 		Path: "MonoBleedingEdge",
-		Mode: 0644 | uint32(os.ModeSymlink),
+		Mode: 0o644 | uint32(os.ModeSymlink),
 		Dest: "/etc/hosts",
 	})
 

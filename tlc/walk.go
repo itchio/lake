@@ -20,7 +20,7 @@ import (
 
 const (
 	// ModeMask is or'd with files being diffed
-	ModeMask = 0644
+	ModeMask = 0o644
 
 	// NullPath can be specified instead of a directory to yield an empty container
 	NullPath = "/dev/null"
@@ -346,7 +346,7 @@ func WalkZip(zr *zip.Reader, opts *WalkOpts) (*Container, error) {
 		// all directories. it's a miracle anything works.
 		dir := path.Dir(fileName)
 		if dir != "" && dir != "." && dirMap[dir] == 0 {
-			dirMap[dir] = os.FileMode(0755)
+			dirMap[dir] = os.FileMode(0o755)
 		}
 
 		info := file.FileInfo()

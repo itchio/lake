@@ -29,7 +29,7 @@ func (c *Container) FixPermissions(pool lake.Pool) error {
 		}
 
 		if isExecutable(buf) {
-			f.Mode |= 0111
+			f.Mode |= 0o111
 		}
 	}
 
