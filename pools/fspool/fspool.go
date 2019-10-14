@@ -33,7 +33,6 @@ type FsPool struct {
 
 var _ lake.Pool = (*FsPool)(nil)
 var _ lake.WritablePool = (*FsPool)(nil)
-var _ lake.TruncatablePool = (*FsPool)(nil)
 
 // ReadCloseSeeker unifies io.Reader, io.Seeker, and io.Closer
 type ReadCloseSeeker interface {
@@ -133,37 +132,12 @@ func (cfp *FsPool) Close() error {
 	return nil
 }
 
-// GetWriter returns a writer for one of the container's file
+// GetWriter returns a writer for one of the container's file.
+// It creates the file if it doesn't exist, and always truncates it.
 func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
-	return cfp.getWriter(fileIndex)
-}
-
-// Stat stats one of the container's file
-func (cfp *FsPool) Stat(fileIndex int64) (os.FileInfo, error) {
-	return os.Stat(cfp.GetPath(fileIndex))
-}
-
-// GetWriterAndTruncate returns a writer for one of the container's file,
-// and it truncates it to the given size.
-func (cfp *FsPool) GetWriterAndTruncate(fileIndex int64, size int64) (io.WriteCloser, error) {
-	f, err := cfp.getWriter(fileIndex)
-	if err != nil {
-		return nil, err
-	}
-
-	err = f.Truncate(size)
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-
-	return f, nil
-}
-
-func (cfp *FsPool) getWriter(fileIndex int64) (*os.File, error) {
 	path := cfp.GetPath(fileIndex)
 
-	err := os.MkdirAll(filepath.Dir(path), os.FileMode(0755))
+	err := os.MkdirAll(filepath.Dir(path), os.FileMode(0o755))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
