@@ -142,6 +142,22 @@ func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
 		return nil, errors.WithStack(err)
 	}
 
+	stats, err := os.Lstat(path)
+	if err == nil {
+		// did stat
+		if stats.IsDir() {
+			err := os.RemoveAll(path)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		} else if stats.Mode()&os.ModeSymlink > 0 {
+			err := os.Remove(path)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+	}
+
 	outputFile := cfp.container.Files[fileIndex]
 	f, oErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(outputFile.Mode)|ModeMask)
 	if oErr != nil {
