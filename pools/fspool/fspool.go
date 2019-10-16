@@ -7,6 +7,7 @@ import (
 
 	"github.com/itchio/lake"
 	"github.com/itchio/lake/tlc"
+	"github.com/itchio/screw"
 	"github.com/pkg/errors"
 )
 
@@ -105,7 +106,7 @@ func (cfp *FsPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 			cfp.reader = nil
 		}
 
-		reader, err := os.Open(cfp.GetPath(fileIndex))
+		reader, err := screw.Open(cfp.GetPath(fileIndex))
 		if err != nil {
 			return nil, err
 		}
@@ -137,21 +138,21 @@ func (cfp *FsPool) Close() error {
 func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
 	path := cfp.GetPath(fileIndex)
 
-	err := os.MkdirAll(filepath.Dir(path), os.FileMode(0o755))
+	err := screw.MkdirAll(filepath.Dir(path), os.FileMode(0o755))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	stats, err := os.Lstat(path)
+	stats, err := screw.Lstat(path)
 	if err == nil {
 		// did stat
 		if stats.IsDir() {
-			err := os.RemoveAll(path)
+			err := screw.RemoveAll(path)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
 		} else if stats.Mode()&os.ModeSymlink > 0 {
-			err := os.Remove(path)
+			err := screw.Remove(path)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -159,7 +160,7 @@ func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
 	}
 
 	outputFile := cfp.container.Files[fileIndex]
-	f, oErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(outputFile.Mode)|ModeMask)
+	f, oErr := screw.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(outputFile.Mode)|ModeMask)
 	if oErr != nil {
 		return nil, oErr
 	}
