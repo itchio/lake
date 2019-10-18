@@ -5,9 +5,11 @@ go 1.13
 require (
 	github.com/golang/protobuf v1.3.1
 	github.com/itchio/arkive v0.0.0-20190910190734-aa506bf6be35
-	github.com/itchio/headway v0.0.0-20190702175331-a4c65c5306de
-	github.com/itchio/httpkit v0.0.0-20190702184704-639fe5edf1f1
-	github.com/itchio/screw v0.0.0-20191014142657-0cc2f92b2e26
+	github.com/itchio/headway v0.0.0-20191015112415-46f64dd4d524
+	github.com/itchio/httpkit v0.0.0-20191016123402-68159f3a0f00
+	github.com/itchio/screw v0.0.0-20191018142458-f361f6d1fb67
+	github.com/mitchellh/copystructure v1.0.0
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
+	golang.org/x/sys v0.0.0-20191018095205-727590c5006e // indirect
 )

@@ -163,6 +163,9 @@ func Test_Prepare(t *testing.T) {
 	must(t, err)
 
 	must(t, container.EnsureEqual(container2))
+
+	container3 := container2.Clone()
+	must(t, container2.EnsureEqual(container3))
 }
 
 // Support code

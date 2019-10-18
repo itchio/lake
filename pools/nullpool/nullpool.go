@@ -3,7 +3,6 @@ package nullpool
 import (
 	"io"
 	"io/ioutil"
-	"os"
 
 	"github.com/itchio/lake"
 	"github.com/itchio/lake/tlc"
@@ -57,11 +56,11 @@ func (nr *NullReader) Read(buf []byte) (int, error) {
 
 func (nr *NullReader) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
-	case os.SEEK_END:
+	case io.SeekEnd:
 		nr.offset = nr.size + offset
-	case os.SEEK_CUR:
+	case io.SeekCurrent:
 		nr.offset += offset
-	case os.SEEK_SET:
+	case io.SeekStart:
 		nr.offset = offset
 	}
 	return nr.offset, nil

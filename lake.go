@@ -2,6 +2,8 @@ package lake
 
 import (
 	"io"
+
+	"github.com/itchio/headway/state"
 )
 
 // A Pool gives read+seek access to an ordered list of files, by index
@@ -34,4 +36,39 @@ type WritablePool interface {
 	// so that the file's final size is the number of bytes written on close.
 	// Writers aren't cached, so this can be called concurrently.
 	GetWriter(fileIndex int64) (io.WriteCloser, error)
+}
+
+type CaseFix struct {
+	// Case we found on disk, which was wrong
+	Old string
+	// Case we renamed it to, which is right
+	New string
+}
+
+type CaseFixStats struct {
+	Fixes []CaseFix
+}
+
+type CaseFixParams struct {
+	Stats    *CaseFixStats
+	Consumer *state.Consumer
+}
+
+type CaseFixerPool interface {
+	// FixExistingCase is ugly, but so is the real world.
+	//
+	// It collects all the paths in the pool's container, and
+	// from shortest to longest, makes sure that they have the
+	// case we expected.
+	//
+	// For example, if we have container with files:
+	//   - Foo/Bar
+	// And directories:
+	//   - Foo/
+	// But on disk, we have:
+	//   - FOO/bar
+	//
+	// This would rename `FOO` to `Foo`,
+	// and `Foo/bar` to `Foo/Bar`.
+	FixExistingCase(params CaseFixParams) error
 }

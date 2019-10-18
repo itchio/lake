@@ -3,7 +3,10 @@ package fspool
 import (
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/itchio/lake"
 	"github.com/itchio/lake/tlc"
@@ -34,6 +37,7 @@ type FsPool struct {
 
 var _ lake.Pool = (*FsPool)(nil)
 var _ lake.WritablePool = (*FsPool)(nil)
+var _ lake.CaseFixerPool = (*FsPool)(nil)
 
 // ReadCloseSeeker unifies io.Reader, io.Seeker, and io.Closer
 type ReadCloseSeeker interface {
@@ -68,9 +72,11 @@ func (cfp *FsPool) GetRelativePath(fileIndex int64) string {
 // GetPath returns the native path of a file (with slashes or backslashes)
 // on-disk, based on the FsPool's base path
 func (cfp *FsPool) GetPath(fileIndex int64) string {
-	path := filepath.FromSlash(cfp.container.Files[fileIndex].Path)
-	fullPath := filepath.Join(cfp.basePath, path)
-	return fullPath
+	return cfp.diskPath(cfp.GetRelativePath(fileIndex))
+}
+
+func (cfp *FsPool) diskPath(containerPath string) string {
+	return filepath.Join(cfp.basePath, filepath.FromSlash(containerPath))
 }
 
 // GetReader returns an io.Reader for the file at index fileIndex
@@ -166,4 +172,61 @@ func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
 	}
 
 	return f, nil
+}
+
+func (cfp *FsPool) FixExistingCase(params lake.CaseFixParams) error {
+	if !screw.IsCaseInsensitiveFS() {
+		return nil
+	}
+
+	var paths []string
+
+	cfp.container.ForEachEntry(func(e tlc.Entry) tlc.ForEachOutcome {
+		paths = append(paths, e.GetPath())
+		return tlc.ForEachContinue
+	})
+
+	sort.Slice(paths, func(i, j int) bool {
+		return len(paths[i]) < len(paths[j])
+	})
+
+	for len(paths) > 0 {
+		p := paths[0]
+		paths = paths[1:]
+
+		needBaseName := path.Base(p)
+		haveBaseName := screw.TrueBaseName(cfp.diskPath(p))
+		if haveBaseName != "" && haveBaseName != needBaseName {
+			// important: don't use filepath.Join() here, use path.Join()
+			havePath := path.Join(path.Dir(p), haveBaseName)
+			needPath := p
+
+			if params.Consumer != nil {
+				params.Consumer.Debugf("Fixing: (%s) => (%s)", havePath, needPath)
+			}
+
+			err := screw.Rename(cfp.diskPath(havePath), cfp.diskPath(needPath))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+
+			if params.Stats != nil {
+				params.Stats.Fixes = append(params.Stats.Fixes, lake.CaseFix{
+					Old: havePath,
+					New: needPath,
+				})
+			}
+
+			for i, p := range paths {
+				if strings.HasPrefix(p, havePath) {
+					oldP := p
+					newP := strings.Replace(p, havePath, needPath, 1)
+					params.Consumer.Debugf("Hence, (%s) => (%s)", oldP, newP)
+					paths[i] = newP
+				}
+			}
+		}
+	}
+
+	return nil
 }
