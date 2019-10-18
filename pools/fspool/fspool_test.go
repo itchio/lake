@@ -70,6 +70,55 @@ func Test_FixExistingCase(t *testing.T) {
 	}
 }
 
+// https://github.com/itchio/wharf/issues/13
+func Test_FixExistingCase_Substrings(t *testing.T) {
+	if !screw.IsCaseInsensitiveFS() {
+		t.Skip("FixExistingCase is only relevant on case-insensitive filesystems")
+	}
+
+	assert := assert.New(t)
+
+	tempDir, err := ioutil.TempDir("", "")
+	must(t, err)
+
+	v1 := filepath.Join(tempDir, "v1")
+	err = os.MkdirAll(filepath.Join(v1, "Data"), 0o755)
+	must(t, err)
+	err = ioutil.WriteFile(filepath.Join(v1, "DataSomething.dll"), []byte("ahHA"), 0o644)
+	must(t, err)
+
+	v2 := filepath.Join(tempDir, "v2")
+	err = os.MkdirAll(filepath.Join(v2, "data"), 0o755)
+	must(t, err)
+	err = ioutil.WriteFile(filepath.Join(v2, "DataSomething.dll"), []byte("ahHA"), 0o644)
+	must(t, err)
+
+	container, err := tlc.WalkAny(v2, &tlc.WalkOpts{})
+	must(t, err)
+
+	fsp := fspool.New(container, v1)
+	stats := lake.CaseFixStats{}
+	consumer := &state.Consumer{
+		OnMessage: func(lvl string, msg string) {
+			t.Logf("[%s] %s", lvl, msg)
+		},
+	}
+
+	err = fsp.FixExistingCase(lake.CaseFixParams{
+		Stats:    &stats,
+		Consumer: consumer,
+	})
+	must(t, err)
+
+	assert.EqualValues(1, len(stats.Fixes), "should have done 3 renames")
+	if len(stats.Fixes) == 1 {
+		assert.EqualValues(lake.CaseFix{
+			Old: "Data",
+			New: "data",
+		}, stats.Fixes[0])
+	}
+}
+
 func must(t *testing.T, err error) {
 	if err != nil {
 		assert.NoError(t, err)

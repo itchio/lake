@@ -2,6 +2,7 @@ package lake
 
 import (
 	"io"
+	"strings"
 
 	"github.com/itchio/headway/state"
 )
@@ -43,6 +44,20 @@ type CaseFix struct {
 	Old string
 	// Case we renamed it to, which is right
 	New string
+}
+
+func (cf CaseFix) Apply(entryPath string) (string, bool) {
+	if entryPath == cf.Old {
+		return cf.New, true
+	}
+
+	oldPrefix := cf.Old + "/"
+	if strings.HasPrefix(entryPath, oldPrefix) {
+		newPrefix := cf.New + "/"
+		return strings.Replace(entryPath, oldPrefix, newPrefix, 1), true
+	}
+
+	return entryPath, false
 }
 
 type CaseFixStats struct {

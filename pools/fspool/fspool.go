@@ -6,7 +6,6 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/itchio/lake"
 	"github.com/itchio/lake/tlc"
@@ -210,18 +209,17 @@ func (cfp *FsPool) FixExistingCase(params lake.CaseFixParams) error {
 				return errors.WithStack(err)
 			}
 
+			fix := lake.CaseFix{
+				Old: havePath,
+				New: needPath,
+			}
 			if params.Stats != nil {
-				params.Stats.Fixes = append(params.Stats.Fixes, lake.CaseFix{
-					Old: havePath,
-					New: needPath,
-				})
+				params.Stats.Fixes = append(params.Stats.Fixes, fix)
 			}
 
 			for i, p := range paths {
-				if strings.HasPrefix(p, havePath) {
-					oldP := p
-					newP := strings.Replace(p, havePath, needPath, 1)
-					params.Consumer.Debugf("Hence, (%s) => (%s)", oldP, newP)
+				if newP, changed := fix.Apply(p); changed {
+					params.Consumer.Debugf("Hence, (%s) => (%s)", p, newP)
 					paths[i] = newP
 				}
 			}
