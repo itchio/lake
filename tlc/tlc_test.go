@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/itchio/arkive/zip"
@@ -26,7 +27,7 @@ func Test_NonDirWalk(t *testing.T) {
 	must(t, err)
 	must(t, f.Close())
 
-	_, err = WalkDir(f.Name(), &WalkOpts{})
+	_, err = WalkDir(f.Name(), WalkOpts{})
 	assert.NotNil(t, err, "should refuse to walk non-directory")
 }
 
@@ -38,7 +39,7 @@ func Test_WalkZip(t *testing.T) {
 	must(t, err)
 	defer os.RemoveAll(tmpPath2)
 
-	container, err := WalkDir(tmpPath, &WalkOpts{})
+	container, err := WalkDir(tmpPath, WalkOpts{})
 	must(t, err)
 
 	zipPath := path.Join(tmpPath2, "container.zip")
@@ -55,7 +56,7 @@ func Test_WalkZip(t *testing.T) {
 	zipReader, err := zip.NewReader(zipWriter, zipSize)
 	must(t, err)
 
-	zipContainer, err := WalkZip(zipReader, &WalkOpts{})
+	zipContainer, err := WalkZip(zipReader, WalkOpts{})
 	must(t, err)
 
 	if testSymlinks {
@@ -77,7 +78,7 @@ func Test_Walk(t *testing.T) {
 	tmpPath := mktestdir(t, "walk")
 	defer os.RemoveAll(tmpPath)
 
-	container, err := WalkDir(tmpPath, &WalkOpts{})
+	container, err := WalkDir(tmpPath, WalkOpts{})
 	must(t, err)
 
 	dirs := []string{
@@ -120,7 +121,7 @@ func Test_Walk(t *testing.T) {
 	assert.Equal(t, totalSize, container.Size, "should report correct size")
 
 	if testSymlinks {
-		container, err := WalkDir(tmpPath, &WalkOpts{Dereference: true})
+		container, err := WalkDir(tmpPath, WalkOpts{Dereference: true})
 		must(t, err)
 
 		assert.EqualValues(t, 0, len(container.Symlinks), "when dereferencing, no symlinks should be listed")
@@ -145,11 +146,82 @@ func Test_Walk(t *testing.T) {
 	}
 }
 
+func Test_WalkIgnore(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Logf("=========== Dir")
+
+	tmpPath := mktestdir(t, "walk")
+	defer os.RemoveAll(tmpPath)
+
+	must(t, os.MkdirAll(filepath.Join(tmpPath, ".itch", "tmp"), 0o755))
+	must(t, ioutil.WriteFile(filepath.Join(tmpPath, ".itch", "tmp", "garbage"), []byte{0x1}, 0o644))
+	must(t, ioutil.WriteFile(filepath.Join(tmpPath, ".DS_Store"), []byte{0x2}, 0o644))
+
+	must(t, os.MkdirAll(filepath.Join(tmpPath, "subdir"), 0o755))
+	must(t, ioutil.WriteFile(filepath.Join(tmpPath, "subdir", ".DS_Store"), []byte{0x3}, 0o644))
+	must(t, ioutil.WriteFile(filepath.Join(tmpPath, "subdir", "Thumbs.db"), []byte{0x3}, 0o644))
+	must(t, ioutil.WriteFile(filepath.Join(tmpPath, "subdir", "._01234"), []byte{0x99}, 0o644))
+
+	must(t, os.MkdirAll(filepath.Join(tmpPath, "subdir", ".hg"), 0o755))
+	must(t, os.MkdirAll(filepath.Join(tmpPath, "subdir", ".svn"), 0o755))
+
+	must(t, os.MkdirAll(filepath.Join(tmpPath, "subdir", ".git"), 0o755))
+	must(t, ioutil.WriteFile(filepath.Join(tmpPath, "subdir", ".git", "HEAD"), []byte("🤕"), 0o644))
+
+	verifyContainer := func(container *Container) {
+		forbiddenWords := []string{".itch", ".DS_Store", ".git", ".svn", ".hg", "HEAD", "Thumbs.db", "._01234"}
+		for _, fw := range forbiddenWords {
+			for _, f := range container.Files {
+				assert.False(strings.Contains(f.Path, fw), "file %q should have been filtered out (%q)", fw)
+			}
+			for _, f := range container.Dirs {
+				assert.False(strings.Contains(f.Path, fw), "dir %q should have been filtered out (%q)", fw)
+			}
+		}
+	}
+
+	var loggingFilter FilterFunc = func(name string) FilterResult {
+		res := PresetFilter(name)
+		if res == FilterIgnore {
+			t.Logf("Ignoring %q", name)
+		}
+		return res
+	}
+	walkOpts := WalkOpts{
+		Filter: loggingFilter,
+	}
+
+	container, err := WalkDir(tmpPath, walkOpts)
+	must(t, err)
+	verifyContainer(container)
+
+	t.Logf("=========== Archive")
+
+	archiveDir, err := ioutil.TempDir("", "tmp_archive")
+	must(t, err)
+	must(t, os.RemoveAll(archiveDir))
+	must(t, os.MkdirAll(archiveDir, 0o755))
+	defer os.RemoveAll(archiveDir)
+
+	archive, err := os.Create(filepath.Join(archiveDir, "archive.zip"))
+	must(t, err)
+	archiveName := archive.Name()
+	defer archive.Close()
+
+	must(t, compressZip(archive, tmpPath, &state.Consumer{}))
+	archive.Close()
+
+	container, err = WalkAny(archiveName, walkOpts)
+	must(t, err)
+	verifyContainer(container)
+}
+
 func Test_Prepare(t *testing.T) {
 	tmpPath := mktestdir(t, "prepare")
 	defer os.RemoveAll(tmpPath)
 
-	container, err := WalkDir(tmpPath, &WalkOpts{})
+	container, err := WalkDir(tmpPath, WalkOpts{})
 	must(t, err)
 
 	tmpPath2, err := ioutil.TempDir("", "prepare")
@@ -159,7 +231,7 @@ func Test_Prepare(t *testing.T) {
 	err = container.Prepare(tmpPath2)
 	must(t, err)
 
-	container2, err := WalkDir(tmpPath2, &WalkOpts{})
+	container2, err := WalkDir(tmpPath2, WalkOpts{})
 	must(t, err)
 
 	must(t, container.EnsureEqual(container2))

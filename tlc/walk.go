@@ -30,13 +30,43 @@ var (
 	ErrUnrecognizedContainer = errors.New("Unrecognized container: should either be a directory, or a .zip archive")
 )
 
+type FilterResult int
+
+const (
+	FilterKeep   FilterResult = 1
+	FilterIgnore FilterResult = 2
+)
+
 // A FilterFunc allows ignoring certain files or directories when walking the filesystem
 // When a directory is ignored by a FilterFunc, all its children are, too!
-type FilterFunc func(fileInfo os.FileInfo) bool
+type FilterFunc func(name string) FilterResult
 
-// DefaultFilter is a passthrough that filters out no files at all
-var DefaultFilter FilterFunc = func(fileInfo os.FileInfo) bool {
-	return true
+// KeepAllFilter is a passthrough that filters out no files at all
+var KeepAllFilter FilterFunc = func(name string) FilterResult {
+	return FilterKeep
+}
+
+var baseIgnoredPaths = []string{
+	".git",
+	".hg",
+	".svn",
+	".DS_Store",
+	"__MACOSX",
+	"._*",
+	"Thumbs.db",
+	".itch",
+}
+
+// PresetFilter is a base filter that ignores git/hg/svn metadata,
+// some macOS and Windows metadata, and the `.itch` folder
+var PresetFilter FilterFunc = func(name string) FilterResult {
+	for _, pattern := range baseIgnoredPaths {
+		match, _ := filepath.Match(pattern, name)
+		if match {
+			return FilterIgnore
+		}
+	}
+	return FilterKeep
 }
 
 type WalkOpts struct {
@@ -57,6 +87,13 @@ type WalkOpts struct {
 
 	// Dereference walks symlinks as if they were their targets
 	Dereference bool
+}
+
+func (opts *WalkOpts) GetFilter() FilterFunc {
+	if opts.Filter != nil {
+		return opts.Filter
+	}
+	return KeepAllFilter
 }
 
 // Wrap the container path if it's a directory, and it ends in .app
@@ -108,7 +145,7 @@ func (opts *WalkOpts) normalizeContainerPath(containerPathPtr *string) bool {
 
 // WalkAny tries to retrieve container information on containerPath. It supports:
 // the empty container (/dev/null), local directories, zip archives, or single files
-func WalkAny(containerPath string, opts *WalkOpts) (*Container, error) {
+func WalkAny(containerPath string, opts WalkOpts) (*Container, error) {
 	// empty container case
 	if containerPath == NullPath {
 		return &Container{}, nil
@@ -170,12 +207,8 @@ func WalkSingle(file eos.File) (*Container, error) {
 }
 
 // WalkDir retrieves information on all files, directories, and symlinks in a directory
-func WalkDir(basePathIn string, opts *WalkOpts) (*Container, error) {
-	filter := opts.Filter
-
-	if filter == nil {
-		filter = DefaultFilter
-	}
+func WalkDir(basePathIn string, opts WalkOpts) (*Container, error) {
+	filter := opts.GetFilter()
 
 	var Dirs []*Dir
 	var Symlinks []*Symlink
@@ -252,7 +285,7 @@ func WalkDir(basePathIn string, opts *WalkOpts) (*Container, error) {
 			// don't end up with files we (the patcher) can't modify
 			Mode := fileInfo.Mode() | ModeMask
 
-			if !filter(fileInfo) {
+			if filter(fileInfo.Name()) == FilterIgnore {
 				if Mode.IsDir() {
 					return filepath.SkipDir
 				}
@@ -317,15 +350,9 @@ func WalkDir(basePathIn string, opts *WalkOpts) (*Container, error) {
 }
 
 // WalkZip walks all file in a zip archive and returns a container
-func WalkZip(zr *zip.Reader, opts *WalkOpts) (*Container, error) {
-	filter := opts.Filter
-
-	if filter == nil {
-		// default filter is a passthrough
-		filter = func(fileInfo os.FileInfo) bool {
-			return true
-		}
-	}
+// Note: WalkZip does not respect filter
+func WalkZip(zr *zip.Reader, opts WalkOpts) (*Container, error) {
+	filter := opts.GetFilter()
 
 	if opts.Dereference {
 		return nil, errors.New("Dereference is not supporting when walking a zip")
@@ -339,8 +366,15 @@ func WalkZip(zr *zip.Reader, opts *WalkOpts) (*Container, error) {
 
 	TotalOffset := int64(0)
 
+eachFile:
 	for _, file := range zr.File {
 		fileName := filepath.ToSlash(filepath.Clean(filepath.ToSlash(file.Name)))
+
+		for _, token := range strings.Split(fileName, "/") {
+			if filter(token) == FilterIgnore {
+				continue eachFile
+			}
+		}
 
 		// don't trust zip files to have directory entries for
 		// all directories. it's a miracle anything works.

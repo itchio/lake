@@ -36,7 +36,7 @@ func Test_FixExistingCase(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(v2, "FOO", "BAR", "BAZ"), []byte("ahHA"), 0o644)
 	must(t, err)
 
-	container, err := tlc.WalkAny(v2, &tlc.WalkOpts{})
+	container, err := tlc.WalkAny(v2, tlc.WalkOpts{})
 	must(t, err)
 
 	fsp := fspool.New(container, v1)
@@ -93,7 +93,7 @@ func Test_FixExistingCase_Substrings(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(v2, "DataSomething.dll"), []byte("ahHA"), 0o644)
 	must(t, err)
 
-	container, err := tlc.WalkAny(v2, &tlc.WalkOpts{})
+	container, err := tlc.WalkAny(v2, tlc.WalkOpts{})
 	must(t, err)
 
 	fsp := fspool.New(container, v1)

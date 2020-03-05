@@ -26,7 +26,7 @@ func Test_Close(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(tmpPath, "hello.txt"), contents, os.FileMode(0o644))
 	must(t, err)
 
-	container, err := tlc.WalkDir(tmpPath, &tlc.WalkOpts{})
+	container, err := tlc.WalkDir(tmpPath, tlc.WalkOpts{})
 	must(t, err)
 
 	testPool := func(p lake.Pool) {
@@ -55,7 +55,7 @@ func Test_Close(t *testing.T) {
 	cp := cachepool.New(container, fp, cacheTarget)
 	go func() {
 		for i := range container.Files {
-			cp.Preload(int64(i))
+			_ = cp.Preload(int64(i))
 		}
 	}()
 
