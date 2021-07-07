@@ -285,7 +285,7 @@ func WalkDir(basePathIn string, opts WalkOpts) (*Container, error) {
 			// don't end up with files we (the patcher) can't modify
 			Mode := fileInfo.Mode() | ModeMask
 
-			if filter(fileInfo.Name()) == FilterIgnore {
+			if filter(FullPath) == FilterIgnore {
 				if Mode.IsDir() {
 					return filepath.SkipDir
 				}
