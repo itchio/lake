@@ -1,6 +1,6 @@
 module github.com/itchio/lake
 
-go 1.23
+go 1.23.0
 
 require (
 	github.com/itchio/arkive v0.0.0-20200301155608-aeded25a0494
@@ -31,8 +31,8 @@ require (
 	github.com/klauspost/compress v1.10.2 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
-	golang.org/x/sys v0.0.0-20200301153931-2f85c7ec1e52 // indirect
-	golang.org/x/text v0.3.2 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
