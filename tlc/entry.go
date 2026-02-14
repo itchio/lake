@@ -1,6 +1,6 @@
 package tlc
 
-import "github.com/mitchellh/copystructure"
+import "google.golang.org/protobuf/proto"
 
 type Entry interface {
 	GetPath() string
@@ -16,16 +16,8 @@ var _ Entry = (*Symlink)(nil)
 
 //--------- File
 
-func (f *File) GetPath() string {
-	return f.Path
-}
-
 func (f *File) SetPath(path string) {
 	f.Path = path
-}
-
-func (f *File) GetMode() uint32 {
-	return f.Mode
 }
 
 func (f *File) SetMode(mode uint32) {
@@ -34,16 +26,8 @@ func (f *File) SetMode(mode uint32) {
 
 //--------- Symlink
 
-func (s *Symlink) GetPath() string {
-	return s.Path
-}
-
 func (s *Symlink) SetPath(path string) {
 	s.Path = path
-}
-
-func (s *Symlink) GetMode() uint32 {
-	return s.Mode
 }
 
 func (s *Symlink) SetMode(mode uint32) {
@@ -52,16 +36,8 @@ func (s *Symlink) SetMode(mode uint32) {
 
 //--------- Dir
 
-func (d *Dir) GetPath() string {
-	return d.Path
-}
-
 func (d *Dir) SetPath(path string) {
 	d.Path = path
-}
-
-func (d *Dir) GetMode() uint32 {
-	return d.Mode
 }
 
 func (d *Dir) SetMode(mode uint32) {
@@ -99,15 +75,5 @@ func (c *Container) ForEachEntry(f func(e Entry) ForEachOutcome) {
 
 // Clone returns a deep clone of this container
 func (c *Container) Clone() *Container {
-	interf, err := copystructure.Copy(c)
-	if err != nil {
-		panic(err)
-	}
-
-	c2, ok := interf.(*Container)
-	if !ok {
-		panic("copystructure.Copy(*tlc.Container) did not return a *tlc.Container")
-	}
-
-	return c2
+	return proto.Clone(c).(*Container)
 }
