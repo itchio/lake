@@ -39,10 +39,7 @@ type NullReader struct {
 }
 
 func (nr *NullReader) Read(buf []byte) (int, error) {
-	newOffset := nr.offset + int64(len(buf))
-	if newOffset >= nr.size {
-		newOffset = nr.size
-	}
+	newOffset := min(nr.offset+int64(len(buf)), nr.size)
 
 	readSize := int(newOffset - nr.offset)
 	nr.offset = newOffset

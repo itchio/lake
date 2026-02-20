@@ -30,7 +30,7 @@ func Test_Close(t *testing.T) {
 	must(t, err)
 
 	testPool := func(p lake.Pool) {
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			r, err := p.GetReader(0)
 			must(t, err)
 
