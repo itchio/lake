@@ -1,6 +1,7 @@
 package pools
 
 import (
+	stderrors "errors"
 	"strings"
 
 	"github.com/itchio/arkive/zip"
@@ -41,7 +42,8 @@ func New(c *tlc.Container, basePath string) (lake.Pool, error) {
 
 	if strings.HasSuffix(strings.ToLower(targetInfo.Name()), ".zip") {
 		zr, err := zip.NewReader(fr, targetInfo.Size())
-		if err != nil {
+		// ErrInsecurePath is non-fatal: zippool normalizes paths to match WalkZip.
+		if err != nil && !stderrors.Is(err, zip.ErrInsecurePath) {
 			return nil, errors.WithStack(err)
 		}
 		return zippool.New(c, zr), nil

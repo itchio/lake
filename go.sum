@@ -45,8 +45,8 @@ github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f h1:3BSP1Tbs2djlpprl7w
 github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f/go.mod h1:Pcatq5tYkCW2Q6yrR2VRHlbHpZ/R4/7qyL1TCF7vl14=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
-github.com/itchio/arkive v0.0.0-20260129195250-d003d2dc1a31 h1:/zTg6X2qwQvV56RXQ6QrVOZPxEDSHgDTyb5MBzVrw50=
-github.com/itchio/arkive v0.0.0-20260129195250-d003d2dc1a31/go.mod h1:1jjAAhUnNDwHiqnC9YpwH5inlJ1/zZ+eL+MmEh8oGb0=
+github.com/itchio/arkive v0.0.0-20260424164943-5eabdbdce5c8 h1:pSMXKB+oJ1ebQykvGnSFmmf+Uk3eSh1ppaDdCy9sefM=
+github.com/itchio/arkive v0.0.0-20260424164943-5eabdbdce5c8/go.mod h1:1jjAAhUnNDwHiqnC9YpwH5inlJ1/zZ+eL+MmEh8oGb0=
 github.com/itchio/headway v0.0.0-20251229214354-da882c8b5dd4 h1:vOYjkMs+aVNeHU0d6MCctyEyxn02n0l3Zw6dsU9AsEs=
 github.com/itchio/headway v0.0.0-20251229214354-da882c8b5dd4/go.mod h1:1/4tbTrV3G/Su53pnKBpa5mv3cVkLweRAq/xRnulSQI=
 github.com/itchio/httpkit v0.0.0-20260213231528-25109ada88c9 h1:xSd/0N0YIsPZrLCIdRgUXSg40/OdvRoklto3KiSzCuE=

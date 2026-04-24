@@ -6,7 +6,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"path"
+	"strings"
 
 	"github.com/itchio/arkive/zip"
 
@@ -50,7 +51,8 @@ func New(c *tlc.Container, zipReader *zip.Reader) *ZipPool {
 		} else if (info.Mode() & os.ModeSymlink) > 0 {
 			// muffin ether
 		} else {
-			key := filepath.ToSlash(filepath.Clean(f.Name))
+			// Normalize to match the path format produced by tlc.WalkZip
+			key := path.Clean(strings.ReplaceAll(f.Name, `\`, `/`))
 			fmap[key] = f
 		}
 	}

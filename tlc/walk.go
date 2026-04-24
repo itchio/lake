@@ -1,6 +1,7 @@
 package tlc
 
 import (
+	stderrors "errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -171,7 +172,9 @@ func WalkAny(containerPath string, opts WalkOpts) (*Container, error) {
 	// zip archive case
 	if strings.HasSuffix(strings.ToLower(stat.Name()), ".zip") {
 		zr, err := zip.NewReader(file, stat.Size())
-		if err != nil {
+		// ErrInsecurePath is non-fatal: the reader is still valid.
+		// WalkZip normalizes backslashes and re-validates paths.
+		if err != nil && !stderrors.Is(err, zip.ErrInsecurePath) {
 			return nil, errors.WithStack(err)
 		}
 		return WalkZip(zr, opts)
@@ -368,7 +371,13 @@ func WalkZip(zr *zip.Reader, opts WalkOpts) (*Container, error) {
 
 eachFile:
 	for _, file := range zr.File {
-		fileName := filepath.ToSlash(filepath.Clean(filepath.ToSlash(file.Name)))
+		// Normalize backslashes from Windows-created zips
+		fileName := strings.ReplaceAll(file.Name, `\`, `/`)
+		fileName = path.Clean(fileName)
+		if fileName == "" || fileName == "." || fileName == ".." || hasWindowsDrivePrefix(fileName) ||
+			strings.HasPrefix(fileName, "/") || strings.HasPrefix(fileName, "../") {
+			continue
+		}
 
 		for _, token := range strings.Split(fileName, "/") {
 			if filter(token) == FilterIgnore {
@@ -442,6 +451,12 @@ eachFile:
 		Files:    Files,
 	}
 	return container, nil
+}
+
+func hasWindowsDrivePrefix(path string) bool {
+	return len(path) >= 2 &&
+		((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
+		path[1] == ':'
 }
 
 // Stats return a human-readable summary of the contents of a container
