@@ -387,8 +387,7 @@ eachFile:
 
 		// don't trust zip files to have directory entries for
 		// all directories. it's a miracle anything works.
-		dir := path.Dir(fileName)
-		if dir != "" && dir != "." && dirMap[dir] == 0 {
+		for dir := path.Dir(fileName); dir != "" && dir != "." && dir != "/" && dirMap[dir] == 0; dir = path.Dir(dir) {
 			dirMap[dir] = os.FileMode(0o755)
 		}
 

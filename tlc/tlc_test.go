@@ -1,12 +1,14 @@
 package tlc
 
 import (
+	"bytes"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
@@ -72,6 +74,58 @@ func Test_WalkZip(t *testing.T) {
 	assert.Equal(t, totalSize, container.Size, "should report correct size")
 
 	must(t, container.EnsureEqual(zipContainer))
+}
+
+func Test_WalkZipFileUsedAsDir(t *testing.T) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	_, err := zw.Create("assets/assets")
+	must(t, err)
+
+	w, err := zw.Create("assets/assets/audio/bgm_act.ogg")
+	must(t, err)
+	_, err = w.Write([]byte("oggdata"))
+	must(t, err)
+
+	must(t, zw.Close())
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	must(t, err)
+
+	container, err := WalkZip(zr, WalkOpts{})
+	must(t, err)
+
+	err = container.Validate()
+	assert.NotNil(t, err, "should reject file used as parent directory")
+	t.Logf("As expected:\n%s", err)
+}
+
+func Test_WalkZipSparseDirs(t *testing.T) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	w, err := zw.Create("a/b/c/f")
+	must(t, err)
+	_, err = w.Write([]byte("hello"))
+	must(t, err)
+
+	must(t, zw.Close())
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	must(t, err)
+
+	container, err := WalkZip(zr, WalkOpts{})
+	must(t, err)
+
+	var dirs []string
+	for _, d := range container.Dirs {
+		dirs = append(dirs, d.Path)
+	}
+	sort.Strings(dirs)
+	assert.Equal(t, []string{"a", "a/b", "a/b/c"}, dirs)
+
+	must(t, container.Validate())
 }
 
 func Test_Walk(t *testing.T) {

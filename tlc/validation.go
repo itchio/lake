@@ -2,6 +2,7 @@ package tlc
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -44,6 +45,34 @@ func (container *Container) Validate() error {
 			dup(previous, curr)
 		}
 		paths[curr.Path] = curr
+	}
+
+	// a file or symlink can never be the parent directory of another entry
+	badParents := make(map[string]bool)
+	checkAncestors := func(curr humanPrintable, currPath string) {
+		for dir := path.Dir(currPath); dir != "" && dir != "." && dir != "/"; dir = path.Dir(dir) {
+			parent, ok := paths[dir]
+			if !ok {
+				continue
+			}
+			switch parent.(type) {
+			case *File, *Symlink:
+				if !badParents[dir] {
+					badParents[dir] = true
+					buf.errors = append(buf.errors, fmt.Sprintf("An entry is used as the parent directory of other entries, but is not a directory:\n%s\n%s", parent.ToString(), curr.ToString()))
+				}
+			}
+		}
+	}
+
+	for _, curr := range container.Files {
+		checkAncestors(curr, curr.Path)
+	}
+	for _, curr := range container.Symlinks {
+		checkAncestors(curr, curr.Path)
+	}
+	for _, curr := range container.Dirs {
+		checkAncestors(curr, curr.Path)
 	}
 
 	if len(buf.errors) > 0 {
