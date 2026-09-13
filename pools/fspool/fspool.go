@@ -135,6 +135,15 @@ func (cfp *FsPool) Close() error {
 		cfp.fileIndex = -1
 	}
 
+	if cfp.UniqueReader != nil {
+		err := cfp.UniqueReader.Close()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		cfp.UniqueReader = nil
+	}
+
 	return nil
 }
 
