@@ -17,14 +17,14 @@ type Pool interface {
 	// so a second call to GetReader will close the last reader.
 	GetReader(fileIndex int64) (io.Reader, error)
 
-	// GetReadSeeker beahves like GetReader (including caching) but allows seeking
-	// as well. For some pools (like zip pool), this call may involve decompressing
-	// *an entire entry* and then returning a temporary *os.File (or memory file).
+	// GetReadSeeker behaves like GetReader (including caching) but allows seeking
+	// as well. For zip pools, seeking is served from a spool that decompresses
+	// the entry as far as reads demand, in memory first and then on disk.
 	GetReadSeeker(fileIndex int64) (io.ReadSeeker, error)
 
 	// Close closes the last opened reader, if any. Does not impact `GetWriter`
-	// at all. Calling Close doesn't render the pool unusable, all its other methods
-	// should not error out afterwards.
+	// at all. Pools that own the handle they read from, such as those pools.New
+	// builds over an archive or a single file, are unusable after Close.
 	Close() error
 }
 
