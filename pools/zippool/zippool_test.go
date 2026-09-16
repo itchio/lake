@@ -199,6 +199,29 @@ func TestSpillMidRead(t *testing.T) {
 	expectBytes(t, readN(t, r, 12), want[4090:4102])
 }
 
+func TestRepeatedGetReaderStartsOver(t *testing.T) {
+	c, zr := fixture(t)
+	p := New(c, zr)
+	defer p.Close()
+	first, err := p.GetReader(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectBytes(t, readN(t, first, 5), []byte("first"))
+	again, err := p.GetReader(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := io.ReadAll(again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectBytes(t, all, []byte("first contents"))
+	if _, err := first.Read(make([]byte, 1)); err == nil {
+		t.Fatal("previous reader left open")
+	}
+}
+
 func TestSwitchingEntryDropsSpool(t *testing.T) {
 	c, zr := fixture(t)
 	dir := t.TempDir()

@@ -111,42 +111,39 @@ func (cfp *ZipPool) GetPath(fileIndex int64) string {
 	panic("ZipPool does not support GetPath")
 }
 
-// GetReader returns an io.Reader for the file at index fileIndex
-// Successive calls to `GetReader` will attempt to re-use the last
-// returned reader if the file index is similar. The cache size is 1, so
-// reading in parallel from different files is not supported.
+// GetReader returns a reader positioned at the start of the entry, closing
+// the previous one. Like FsPool, a repeated call for the same index starts
+// over rather than continuing the consumed stream. Only one reader is open
+// at a time, so reading from different files in parallel is not supported.
 func (cfp *ZipPool) GetReader(fileIndex int64) (io.Reader, error) {
-	if cfp.fileIndex != fileIndex {
-		if cfp.reader != nil {
-			cfp.fileIndex = -1
-			err := cfp.reader.Close()
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-			cfp.reader = nil
-		}
-
-		relPath := cfp.GetRelativePath(fileIndex)
-		f := cfp.fmap[relPath]
-		if f == nil {
-			if verboseZipPool {
-				fmt.Printf("\nzip contents:\n")
-				for k := range cfp.fmap {
-					fmt.Printf("\n- %s", k)
-				}
-				fmt.Println()
-			}
-			return nil, errors.WithStack(errors.Errorf("file not found in zip: %s", relPath))
-		}
-
-		reader, err := f.Open()
-
+	if cfp.reader != nil {
+		cfp.fileIndex = -1
+		err := cfp.reader.Close()
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		cfp.reader = reader
-		cfp.fileIndex = fileIndex
+		cfp.reader = nil
 	}
+
+	relPath := cfp.GetRelativePath(fileIndex)
+	f := cfp.fmap[relPath]
+	if f == nil {
+		if verboseZipPool {
+			fmt.Printf("\nzip contents:\n")
+			for k := range cfp.fmap {
+				fmt.Printf("\n- %s", k)
+			}
+			fmt.Println()
+		}
+		return nil, errors.WithStack(errors.Errorf("file not found in zip: %s", relPath))
+	}
+
+	reader, err := f.Open()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	cfp.reader = reader
+	cfp.fileIndex = fileIndex
 
 	return cfp.reader, nil
 }
