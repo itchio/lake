@@ -1,10 +1,9 @@
 package zippool
 
 import (
-	"bytes"
+	stderrors "errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -20,6 +19,7 @@ var verboseZipPool = os.Getenv("VERBOSE_ZIP_POOL") == "1"
 
 // ZipPool implements the lake.ZipPool interface based on a Container
 type ZipPool struct {
+	options   Options
 	container *tlc.Container
 	fmap      map[string]*zip.File
 
@@ -39,9 +39,25 @@ type ReadCloseSeeker interface {
 	io.Closer
 }
 
-// NewZipPool creates a new ZipPool from the given Container
-// metadata and a base path on-disk to allow reading from files.
+type Options struct {
+	// MaxMemory caps how much of a seekable entry is held in memory before
+	// the rest spills to a temp file. Zero means DefaultMaxMemory.
+	MaxMemory int64
+	// TempDir receives spilled entries and must already exist. Empty uses
+	// os.TempDir, which on Linux is often tmpfs and so memory again.
+	TempDir string
+}
+
 func New(c *tlc.Container, zipReader *zip.Reader) *ZipPool {
+	return NewWithOptions(c, zipReader, Options{})
+}
+
+// NewWithOptions controls where seekable entries are spooled. Entries are
+// decompressed only as far as reads demand. The spool is dropped when another
+// seekable entry is requested or the pool is closed; the pool stays usable
+// after Close. The caller owns the archive backing zipReader and must keep it
+// open.
+func NewWithOptions(c *tlc.Container, zipReader *zip.Reader, opts Options) *ZipPool {
 	fmap := make(map[string]*zip.File)
 	for _, f := range zipReader.File {
 		info := f.FileInfo()
@@ -58,6 +74,7 @@ func New(c *tlc.Container, zipReader *zip.Reader) *ZipPool {
 	}
 
 	return &ZipPool{
+		options:   opts,
 		container: c,
 		fmap:      fmap,
 
@@ -93,12 +110,12 @@ func (cfp *ZipPool) GetPath(fileIndex int64) string {
 func (cfp *ZipPool) GetReader(fileIndex int64) (io.Reader, error) {
 	if cfp.fileIndex != fileIndex {
 		if cfp.reader != nil {
+			cfp.fileIndex = -1
 			err := cfp.reader.Close()
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
 			cfp.reader = nil
-			cfp.fileIndex = -1
 		}
 
 		relPath := cfp.GetRelativePath(fileIndex)
@@ -130,12 +147,12 @@ func (cfp *ZipPool) GetReader(fileIndex int64) (io.Reader, error) {
 func (cfp *ZipPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 	if cfp.seekFileIndex != fileIndex {
 		if cfp.readSeeker != nil {
+			cfp.seekFileIndex = -1
 			err := cfp.readSeeker.Close()
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
 			cfp.readSeeker = nil
-			cfp.seekFileIndex = -1
 		}
 
 		key := cfp.GetRelativePath(fileIndex)
@@ -148,14 +165,7 @@ func (cfp *ZipPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		defer reader.Close()
-
-		buf, err := ioutil.ReadAll(reader)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
-		cfp.readSeeker = &closableBuf{bytes.NewReader(buf)}
+		cfp.readSeeker = newSpoolReader(reader, int64(f.UncompressedSize64), cfp.options)
 		cfp.seekFileIndex = fileIndex
 	}
 
@@ -164,43 +174,25 @@ func (cfp *ZipPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 
 // Close closes all reader belonging to this ZipPool
 func (cfp *ZipPool) Close() error {
+	var errs []error
+	// On failure the reader is kept so the next Get* call retries the close,
+	// but the index is cleared so a closed reader is never handed back.
 	if cfp.reader != nil {
-		err := cfp.reader.Close()
-		if err != nil {
-			return errors.WithStack(err)
+		if err := cfp.reader.Close(); err != nil {
+			errs = append(errs, err)
+		} else {
+			cfp.reader = nil
 		}
-
-		cfp.reader = nil
 		cfp.fileIndex = -1
 	}
-
+	// A streaming close failure must not leave a seekable temp file behind.
 	if cfp.readSeeker != nil {
-		err := cfp.readSeeker.Close()
-		if err != nil {
-			return errors.WithStack(err)
+		if err := cfp.readSeeker.Close(); err != nil {
+			errs = append(errs, err)
+		} else {
+			cfp.readSeeker = nil
 		}
-
-		cfp.readSeeker = nil
 		cfp.seekFileIndex = -1
 	}
-
-	return nil
-}
-
-type closableBuf struct {
-	rs io.ReadSeeker
-}
-
-var _ ReadCloseSeeker = (*closableBuf)(nil)
-
-func (cb *closableBuf) Read(buf []byte) (int, error) {
-	return cb.rs.Read(buf)
-}
-
-func (cb *closableBuf) Seek(offset int64, whence int) (int64, error) {
-	return cb.rs.Seek(offset, whence)
-}
-
-func (cb *closableBuf) Close() error {
-	return nil
+	return errors.WithStack(stderrors.Join(errs...))
 }

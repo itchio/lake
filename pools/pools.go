@@ -16,7 +16,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+type Options struct {
+	// Zip is ignored for directories and standalone files.
+	Zip zippool.Options
+}
+
 func New(c *tlc.Container, basePath string) (lake.Pool, error) {
+	return NewWithOptions(c, basePath, Options{})
+}
+
+// NewWithOptions is New with control over how ZIP entries are spooled.
+func NewWithOptions(c *tlc.Container, basePath string, opts Options) (lake.Pool, error) {
 	if basePath == "/dev/null" {
 		return fspool.New(c, basePath), nil
 	}
@@ -46,7 +56,7 @@ func New(c *tlc.Container, basePath string) (lake.Pool, error) {
 		if err != nil && !stderrors.Is(err, zip.ErrInsecurePath) {
 			return nil, errors.WithStack(err)
 		}
-		return zippool.New(c, zr), nil
+		return zippool.NewWithOptions(c, zr, opts.Zip), nil
 	}
 
 	// assume single-file container

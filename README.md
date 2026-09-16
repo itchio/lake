@@ -96,6 +96,19 @@ defer pool.Close()
 reader, err := pool.GetReader(0) // read first file
 ```
 
+Seekable reads from ZIP entries are decompressed lazily and spooled, in
+memory up to a cap and then in a temp file. To pick the cap or the directory:
+
+```go
+pool, err := pools.NewWithOptions(container, archivePath, pools.Options{
+    Zip: zippool.Options{MaxMemory: 64 << 20, TempDir: scratchDir},
+})
+if err != nil {
+    return err
+}
+defer pool.Close()
+```
+
 ## License
 
 MIT
