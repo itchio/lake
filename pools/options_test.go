@@ -15,15 +15,7 @@ import (
 func TestNewWithZipOptions(t *testing.T) {
 	root := t.TempDir()
 	archivePath := filepath.Join(root, "game.zip")
-	file, err := os.Create(archivePath)
-	must(t, err)
-	zw := zip.NewWriter(file)
-	w, err := zw.Create("game")
-	must(t, err)
-	_, err = io.WriteString(w, "game contents")
-	must(t, err)
-	must(t, zw.Close())
-	must(t, file.Close())
+	writeZip(t, archivePath)
 	container, err := tlc.WalkAny(archivePath, tlc.WalkOpts{})
 	must(t, err)
 	scratch := t.TempDir()
@@ -76,4 +68,69 @@ func TestZipOptionsIgnoredForFilesystem(t *testing.T) {
 			}
 		})
 	}
+}
+
+// openHandles counts descriptors on path. Only Linux exposes them; elsewhere
+// the test falls back to os.Remove, which Windows refuses on an open file.
+func openHandles(t *testing.T, path string) int {
+	t.Helper()
+	fds, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return -1
+	}
+	n := 0
+	for _, fd := range fds {
+		target, err := os.Readlink(filepath.Join("/proc/self/fd", fd.Name()))
+		if err == nil && target == path {
+			n++
+		}
+	}
+	return n
+}
+
+func writeZip(t *testing.T, path string) {
+	t.Helper()
+	file, err := os.Create(path)
+	must(t, err)
+	zw := zip.NewWriter(file)
+	w, err := zw.Create("game")
+	must(t, err)
+	_, err = io.WriteString(w, "game contents")
+	must(t, err)
+	must(t, zw.Close())
+	must(t, file.Close())
+}
+
+func TestZipPoolClosesArchive(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "game.zip")
+	writeZip(t, archivePath)
+	container, err := tlc.WalkAny(archivePath, tlc.WalkOpts{})
+	must(t, err)
+	pool, err := pools.New(container, archivePath)
+	must(t, err)
+	r, err := pool.GetReader(0)
+	must(t, err)
+	_, err = io.ReadAll(r)
+	must(t, err)
+	if n := openHandles(t, archivePath); n == 0 {
+		t.Fatal("expected the archive to be open while the pool is live")
+	}
+	must(t, pool.Close())
+	must(t, pool.Close())
+	if n := openHandles(t, archivePath); n > 0 {
+		t.Fatalf("%d handles still open after Close", n)
+	}
+	must(t, os.Remove(archivePath))
+}
+
+func TestZipPoolClosesArchiveOnOpenError(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "bad.zip")
+	must(t, os.WriteFile(archivePath, []byte("not a zip"), 0600))
+	if _, err := pools.New(&tlc.Container{}, archivePath); err == nil {
+		t.Fatal("expected an error opening a bad zip")
+	}
+	if n := openHandles(t, archivePath); n > 0 {
+		t.Fatalf("%d handles leaked", n)
+	}
+	must(t, os.Remove(archivePath))
 }

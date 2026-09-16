@@ -20,6 +20,7 @@ var verboseZipPool = os.Getenv("VERBOSE_ZIP_POOL") == "1"
 // ZipPool implements the lake.ZipPool interface based on a Container
 type ZipPool struct {
 	options   Options
+	archive   io.Closer
 	container *tlc.Container
 	fmap      map[string]*zip.File
 
@@ -54,9 +55,9 @@ func New(c *tlc.Container, zipReader *zip.Reader) *ZipPool {
 
 // NewWithOptions controls where seekable entries are spooled. Entries are
 // decompressed only as far as reads demand. The spool is dropped when another
-// seekable entry is requested or the pool is closed; the pool stays usable
-// after Close. The caller owns the archive backing zipReader and must keep it
-// open.
+// seekable entry is requested or the pool is closed. The caller owns the
+// archive backing zipReader and must keep it open, unless it hands it over
+// with OwnArchive.
 func NewWithOptions(c *tlc.Container, zipReader *zip.Reader, opts Options) *ZipPool {
 	fmap := make(map[string]*zip.File)
 	for _, f := range zipReader.File {
@@ -84,6 +85,13 @@ func NewWithOptions(c *tlc.Container, zipReader *zip.Reader, opts Options) *ZipP
 		seekFileIndex: int64(-1),
 		readSeeker:    nil,
 	}
+}
+
+// OwnArchive makes Close also close the handle backing the zip.Reader, for
+// callers like pools.New that opened the archive themselves. The pool is no
+// longer usable after Close once it owns the archive.
+func (cfp *ZipPool) OwnArchive(archive io.Closer) {
+	cfp.archive = archive
 }
 
 // GetSize returns the size of the file at index fileIndex
@@ -193,6 +201,14 @@ func (cfp *ZipPool) Close() error {
 			cfp.readSeeker = nil
 		}
 		cfp.seekFileIndex = -1
+	}
+	// last, since the entry readers read through it
+	if cfp.archive != nil {
+		if err := cfp.archive.Close(); err != nil {
+			errs = append(errs, err)
+		} else {
+			cfp.archive = nil
+		}
 	}
 	return errors.WithStack(stderrors.Join(errs...))
 }

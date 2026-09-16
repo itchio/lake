@@ -38,6 +38,7 @@ func NewWithOptions(c *tlc.Container, basePath string, opts Options) (lake.Pool,
 
 	targetInfo, err := fr.Stat()
 	if err != nil {
+		fr.Close()
 		return nil, errors.WithStack(err)
 	}
 
@@ -54,9 +55,12 @@ func NewWithOptions(c *tlc.Container, basePath string, opts Options) (lake.Pool,
 		zr, err := zip.NewReader(fr, targetInfo.Size())
 		// ErrInsecurePath is non-fatal: zippool normalizes paths to match WalkZip.
 		if err != nil && !stderrors.Is(err, zip.ErrInsecurePath) {
+			fr.Close()
 			return nil, errors.WithStack(err)
 		}
-		return zippool.NewWithOptions(c, zr, opts.Zip), nil
+		zp := zippool.NewWithOptions(c, zr, opts.Zip)
+		zp.OwnArchive(fr)
+		return zp, nil
 	}
 
 	// assume single-file container

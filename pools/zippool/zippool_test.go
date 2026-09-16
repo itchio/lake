@@ -573,3 +573,75 @@ func BenchmarkZipSeek(b *testing.B) {
 		})
 	}
 }
+
+type recordingCloser struct {
+	log      *[]string
+	name     string
+	failures int
+}
+
+func (c *recordingCloser) Close() error {
+	if c.failures > 0 {
+		c.failures--
+		return errors.New(c.name + " close failed")
+	}
+	*c.log = append(*c.log, c.name)
+	return nil
+}
+
+type recordingReader struct {
+	io.Reader
+	*recordingCloser
+}
+
+func TestOwnedArchiveClosedLastAndOnce(t *testing.T) {
+	c, zr := fixture(t)
+	p := NewWithOptions(c, zr, Options{TempDir: t.TempDir()})
+	var log []string
+	p.OwnArchive(&recordingCloser{log: &log, name: "archive"})
+	if _, err := p.GetReadSeeker(0); err != nil {
+		t.Fatal(err)
+	}
+	p.reader = recordingReader{strings.NewReader(""), &recordingCloser{log: &log, name: "entry"}}
+	for range 2 {
+		if err := p.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := strings.Join(log, ","); got != "entry,archive" {
+		t.Fatalf("close order %q", got)
+	}
+}
+
+func TestOwnedArchiveCloseRetried(t *testing.T) {
+	c, zr := fixture(t)
+	p := NewWithOptions(c, zr, Options{TempDir: t.TempDir()})
+	var log []string
+	p.OwnArchive(&recordingCloser{log: &log, name: "archive", failures: 1})
+	if err := p.Close(); err == nil {
+		t.Fatal("expected archive close failure")
+	}
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(log) != 1 {
+		t.Fatalf("archive closed %d times", len(log))
+	}
+}
+
+func TestCallerOwnedArchiveLeftOpen(t *testing.T) {
+	c, zr := fixture(t)
+	p := New(c, zr)
+	if _, err := p.GetReadSeeker(0); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// the archive is still open, so the pool can keep serving entries
+	r, err := p.GetReadSeeker(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectBytes(t, readN(t, r, 6), []byte("second"))
+}
