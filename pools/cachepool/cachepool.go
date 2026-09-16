@@ -22,7 +22,9 @@ type CachePool struct {
 var _ lake.Pool = (*CachePool)(nil)
 
 // New creates a cachepool that reads from source and stores in
-// cache as an intermediary
+// cache as an intermediary. It owns neither pool: both are only
+// closed from Close, so a source that becomes unusable after Close,
+// such as a pools.New archive, works as a source.
 func New(c *tlc.Container, source lake.Pool, cache lake.WritablePool) *CachePool {
 	cp := &CachePool{
 		container: c,
@@ -99,7 +101,6 @@ func (cp *CachePool) doPreload(fileIndex int64) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer cp.source.Close()
 
 	writer, err := cp.cache.GetWriter(fileIndex)
 	if err != nil {
