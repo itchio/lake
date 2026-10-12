@@ -125,3 +125,40 @@ func must(t *testing.T, err error) {
 		t.FailNow()
 	}
 }
+
+func Test_WriterRefusesSymlinkedParent(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(base, "d")); err != nil {
+		t.Skip(err)
+	}
+	c := &tlc.Container{Files: []*tlc.File{{Path: "d/escape.txt", Mode: 0o644}, {Path: "ok/inside.txt", Mode: 0o644}}}
+	pool := fspool.New(c, base)
+
+	if _, err := pool.GetWriter(0); err == nil {
+		t.Fatal("writer through symlinked parent accepted")
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "escape.txt")); !os.IsNotExist(err) {
+		t.Fatal("file was created outside the base")
+	}
+	w, err := pool.GetWriter(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+}
+
+func Test_ReaderRefusesLeafSymlink(t *testing.T) {
+	base := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(base, "f")); err != nil {
+		t.Skip(err)
+	}
+	c := &tlc.Container{Files: []*tlc.File{{Path: "f", Mode: 0o644}}}
+	if _, err := fspool.New(c, base).GetReadSeeker(0); err == nil {
+		t.Fatal("read through leaf symlink accepted")
+	}
+}

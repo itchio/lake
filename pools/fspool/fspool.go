@@ -69,9 +69,16 @@ func (cfp *FsPool) GetRelativePath(fileIndex int64) string {
 }
 
 // GetPath returns the native path of a file (with slashes or backslashes)
-// on-disk, based on the FsPool's base path
+// on-disk, based on the FsPool's base path. It is a plain join for display
+// and case fixing; anything that opens the path must use ContainedPath.
 func (cfp *FsPool) GetPath(fileIndex int64) string {
 	return cfp.diskPath(cfp.GetRelativePath(fileIndex))
+}
+
+// ContainedPath is GetPath with tlc.ContainedPath's checks applied against
+// the current state of the base directory.
+func (cfp *FsPool) ContainedPath(fileIndex int64) (string, error) {
+	return tlc.ContainedPath(cfp.basePath, cfp.GetRelativePath(fileIndex))
 }
 
 func (cfp *FsPool) diskPath(containerPath string) string {
@@ -111,7 +118,11 @@ func (cfp *FsPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 			cfp.reader = nil
 		}
 
-		reader, err := screw.Open(cfp.GetPath(fileIndex))
+		path, err := tlc.ContainedFilePath(cfp.basePath, cfp.GetRelativePath(fileIndex))
+		if err != nil {
+			return nil, err
+		}
+		reader, err := screw.Open(path)
 		if err != nil {
 			return nil, err
 		}
@@ -150,9 +161,12 @@ func (cfp *FsPool) Close() error {
 // GetWriter returns a writer for one of the container's file.
 // It creates the file if it doesn't exist, and always truncates it.
 func (cfp *FsPool) GetWriter(fileIndex int64) (io.WriteCloser, error) {
-	path := cfp.GetPath(fileIndex)
+	path, err := cfp.ContainedPath(fileIndex)
+	if err != nil {
+		return nil, err
+	}
 
-	err := screw.MkdirAll(filepath.Dir(path), os.FileMode(0o755))
+	err = screw.MkdirAll(filepath.Dir(path), os.FileMode(0o755))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -188,11 +202,18 @@ func (cfp *FsPool) FixExistingCase(params lake.CaseFixParams) error {
 	}
 
 	var paths []string
+	var pathErr error
 
 	cfp.container.ForEachEntry(func(e tlc.Entry) tlc.ForEachOutcome {
+		if pathErr = tlc.ValidatePath(e.GetPath()); pathErr != nil {
+			return tlc.ForEachBreak
+		}
 		paths = append(paths, e.GetPath())
 		return tlc.ForEachContinue
 	})
+	if pathErr != nil {
+		return pathErr
+	}
 
 	sort.Slice(paths, func(i, j int) bool {
 		return len(paths[i]) < len(paths[j])
@@ -213,7 +234,15 @@ func (cfp *FsPool) FixExistingCase(params lake.CaseFixParams) error {
 				params.Consumer.Debugf("Fixing: (%s) => (%s)", havePath, needPath)
 			}
 
-			err := screw.Rename(cfp.diskPath(havePath), cfp.diskPath(needPath))
+			haveDisk, err := tlc.ContainedPath(cfp.basePath, havePath)
+			if err != nil {
+				return err
+			}
+			needDisk, err := tlc.ContainedPath(cfp.basePath, needPath)
+			if err != nil {
+				return err
+			}
+			err = screw.Rename(haveDisk, needDisk)
 			if err != nil {
 				return errors.WithStack(err)
 			}

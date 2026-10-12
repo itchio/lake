@@ -2,7 +2,6 @@ package tlc
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 )
@@ -40,8 +39,18 @@ func (c *Container) Prepare(basePath string) error {
 }
 
 func (c *Container) prepareDir(basePath string, dirEntry *Dir) error {
-	fullPath := filepath.Join(basePath, dirEntry.Path)
-	err := os.MkdirAll(fullPath, os.FileMode(dirEntry.Mode))
+	fullPath, err := ContainedPath(basePath, dirEntry.Path)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// MkdirAll is a no-op on a symlink to a directory and Chmod follows it.
+	if stat, err := os.Lstat(fullPath); err == nil && stat.Mode()&os.ModeSymlink != 0 {
+		err = os.Remove(fullPath)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	err = os.MkdirAll(fullPath, os.FileMode(dirEntry.Mode))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -54,7 +63,17 @@ func (c *Container) prepareDir(basePath string, dirEntry *Dir) error {
 }
 
 func (c *Container) prepareFile(basePath string, fileEntry *File) error {
-	fullPath := filepath.Join(basePath, fileEntry.Path)
+	fullPath, err := ContainedPath(basePath, fileEntry.Path)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// A symlink at the file's path is foreign; opening would follow it.
+	if stat, err := os.Lstat(fullPath); err == nil && stat.Mode()&os.ModeSymlink != 0 {
+		err = os.Remove(fullPath)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	file, err := os.OpenFile(fullPath, os.O_CREATE, os.FileMode(fileEntry.Mode))
 	if err != nil {
 		return errors.WithStack(err)
@@ -82,8 +101,15 @@ func (c *Container) prepareFile(basePath string, fileEntry *File) error {
 }
 
 func (c *Container) prepareSymlink(basePath string, link *Symlink) error {
-	fullPath := filepath.Join(basePath, link.Path)
-	err := os.RemoveAll(fullPath)
+	fullPath, err := ContainedPath(basePath, link.Path)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	err = ContainedSymlinkTarget(basePath, fullPath, link.Dest)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	err = os.RemoveAll(fullPath)
 	if err != nil {
 		return errors.WithStack(err)
 	}
