@@ -86,7 +86,7 @@ func ValidatePath(p string) error {
 	case strings.ContainsRune(p, 0), strings.Contains(p, `\`), strings.HasPrefix(p, "/"), hasDriveLetter(p):
 		return fmt.Errorf("%w: %q", ErrPathEscape, p)
 	}
-	for _, component := range strings.Split(p, "/") {
+	for component := range strings.SplitSeq(p, "/") {
 		switch strings.TrimRight(component, ". ") {
 		case "", ".", "..":
 			return fmt.Errorf("%w: %q", ErrPathEscape, p)
@@ -115,7 +115,7 @@ func rejectSymlinkParents(absBase, p string) error {
 		return nil
 	}
 	cur := absBase
-	for _, component := range strings.Split(rel, string(filepath.Separator)) {
+	for component := range strings.SplitSeq(rel, string(filepath.Separator)) {
 		cur = filepath.Join(cur, component)
 		stat, err := os.Lstat(cur)
 		if err != nil {

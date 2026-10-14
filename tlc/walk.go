@@ -380,7 +380,7 @@ eachFile:
 			continue
 		}
 
-		for _, token := range strings.Split(fileName, "/") {
+		for token := range strings.SplitSeq(fileName, "/") {
 			if filter(token) == FilterIgnore {
 				continue eachFile
 			}
