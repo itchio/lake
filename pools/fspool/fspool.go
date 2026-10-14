@@ -27,6 +27,7 @@ type fsEntryReader interface {
 type FsPool struct {
 	container *tlc.Container
 	basePath  string
+	opts      Options
 
 	fileIndex int64
 	reader    fsEntryReader
@@ -45,12 +46,24 @@ type ReadCloseSeeker interface {
 	io.Closer
 }
 
+type Options struct {
+	// Dereference lets reads follow symlinks, for a container walked with
+	// tlc.WalkOpts.Dereference: its entries are symlinks that stand for
+	// their targets, wherever those are. Writes stay contained.
+	Dereference bool
+}
+
 // New creates a new FsPool from the given Container
 // metadata and a base path on-disk to allow reading from files.
 func New(c *tlc.Container, basePath string) *FsPool {
+	return NewWithOptions(c, basePath, Options{})
+}
+
+func NewWithOptions(c *tlc.Container, basePath string, opts Options) *FsPool {
 	return &FsPool{
 		container: c,
 		basePath:  basePath,
+		opts:      opts,
 
 		fileIndex: int64(-1),
 		reader:    nil,
@@ -118,7 +131,7 @@ func (cfp *FsPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 			cfp.reader = nil
 		}
 
-		path, err := tlc.ContainedFilePath(cfp.basePath, cfp.GetRelativePath(fileIndex))
+		path, err := cfp.readPath(fileIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -132,6 +145,17 @@ func (cfp *FsPool) GetReadSeeker(fileIndex int64) (io.ReadSeeker, error) {
 	}
 
 	return cfp.reader, nil
+}
+
+func (cfp *FsPool) readPath(fileIndex int64) (string, error) {
+	rel := cfp.GetRelativePath(fileIndex)
+	if cfp.opts.Dereference {
+		if err := tlc.ValidatePath(rel); err != nil {
+			return "", err
+		}
+		return cfp.diskPath(rel), nil
+	}
+	return tlc.ContainedFilePath(cfp.basePath, rel)
 }
 
 // Close closes all reader belonging to this FsPool

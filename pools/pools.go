@@ -20,13 +20,16 @@ import (
 type Options struct {
 	// Zip is ignored for directories and standalone files.
 	Zip zippool.Options
+	// Fs is ignored for zips.
+	Fs fspool.Options
 }
 
 func New(ctx context.Context, c *tlc.Container, basePath string) (lake.Pool, error) {
 	return NewWithOptions(ctx, c, basePath, Options{})
 }
 
-// NewWithOptions is New with control over how ZIP entries are spooled.
+// NewWithOptions is New with control over how ZIP entries are spooled and
+// whether directory reads follow symlinks.
 func NewWithOptions(ctx context.Context, c *tlc.Container, basePath string, opts Options) (lake.Pool, error) {
 	if basePath == "/dev/null" {
 		return fspool.New(c, basePath), nil
@@ -49,7 +52,7 @@ func NewWithOptions(ctx context.Context, c *tlc.Container, basePath string, opts
 			return nil, err
 		}
 
-		return fspool.New(c, basePath), nil
+		return fspool.NewWithOptions(c, basePath, opts.Fs), nil
 	}
 
 	if strings.HasSuffix(strings.ToLower(targetInfo.Name()), ".zip") {

@@ -163,3 +163,90 @@ func Test_ReaderRefusesLeafSymlink(t *testing.T) {
 		t.Fatal("read through leaf symlink accepted")
 	}
 }
+
+func Test_ReaderDereferencesSymlinks(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "inside.txt"), []byte("dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "inside.txt"), filepath.Join(base, "f")); err != nil {
+		t.Skip(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(base, "d")); err != nil {
+		t.Fatal(err)
+	}
+	c := &tlc.Container{Files: []*tlc.File{{Path: "f", Mode: 0o644}, {Path: "d/inside.txt", Mode: 0o644}}}
+	pool := fspool.NewWithOptions(c, base, fspool.Options{Dereference: true})
+	defer pool.Close()
+
+	for i := range c.Files {
+		r, err := pool.GetReadSeeker(int64(i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := ioutil.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != "dir" {
+			t.Fatalf("%s: got %q", c.Files[i].Path, data)
+		}
+	}
+
+	// writes are still contained, dereferencing or not
+	if _, err := pool.GetWriter(1); err == nil {
+		t.Fatal("writer through symlinked parent accepted")
+	}
+}
+
+func Test_DereferencingReaderRejectsInvalidPath(t *testing.T) {
+	base := t.TempDir()
+	if err := os.WriteFile(filepath.Join(base, "x"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := &tlc.Container{Files: []*tlc.File{{Path: "../x", Mode: 0o644}}}
+	pool := fspool.NewWithOptions(c, filepath.Join(base, "sub"), fspool.Options{Dereference: true})
+	if _, err := pool.GetReadSeeker(0); err == nil {
+		t.Fatal("read of a path outside the base accepted")
+	}
+}
+
+func Test_WriterReplacesLeafSymlink(t *testing.T) {
+	base := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "target")
+	if err := os.WriteFile(outside, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(base, "f")); err != nil {
+		t.Skip(err)
+	}
+	c := &tlc.Container{Files: []*tlc.File{{Path: "f", Mode: 0o644}}}
+	for _, opts := range []fspool.Options{{}, {Dereference: true}} {
+		w, err := fspool.NewWithOptions(c, base, opts).GetWriter(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("new")); err != nil {
+			t.Fatal(err)
+		}
+		w.Close()
+
+		data, err := os.ReadFile(outside)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != "original" {
+			t.Fatalf("symlink target was modified: %q", data)
+		}
+		if stat, err := os.Lstat(filepath.Join(base, "f")); err != nil || stat.Mode()&os.ModeSymlink != 0 {
+			t.Fatal("f should have been replaced by a regular file")
+		}
+		if err := os.Remove(filepath.Join(base, "f")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(base, "f")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
