@@ -59,6 +59,17 @@ func (cp *CachePool) Shutdown() {
 	cp.Close()
 }
 
+// Abort wakes every reader waiting on a file that has not been preloaded
+// with cause, and fails every later Get* call with it. Unlike Shutdown it
+// leaves the source and cache open: readers already handed out may still
+// be in use, and closing stays with whoever owns the pool.
+func (cp *CachePool) Abort(cause error) {
+	if cause == nil {
+		cause = errors.New("aborted")
+	}
+	cp.shutdown(cause)
+}
+
 func (cp *CachePool) shutdown(err error) {
 	cp.shutdownMutex.Lock()
 	defer cp.shutdownMutex.Unlock()
@@ -93,7 +104,7 @@ func (cp *CachePool) doPreload(fileIndex int64) error {
 	success := false
 	defer func() {
 		if success {
-			close(channel)
+			cp.markPreloaded(channel)
 		}
 	}()
 
@@ -116,6 +127,17 @@ func (cp *CachePool) doPreload(fileIndex int64) error {
 	success = true
 
 	return nil
+}
+
+// markPreloaded closes channel unless a shutdown already did, so a
+// preload finishing after Abort does not close it twice.
+func (cp *CachePool) markPreloaded(channel chan struct{}) {
+	cp.shutdownMutex.Lock()
+	defer cp.shutdownMutex.Unlock()
+	if cp.shutdownErr != nil {
+		return
+	}
+	close(channel)
 }
 
 func (cp *CachePool) waitFor(fileIndex int64) error {
