@@ -1,6 +1,7 @@
 package pools
 
 import (
+	"context"
 	stderrors "errors"
 	"strings"
 
@@ -21,17 +22,17 @@ type Options struct {
 	Zip zippool.Options
 }
 
-func New(c *tlc.Container, basePath string) (lake.Pool, error) {
-	return NewWithOptions(c, basePath, Options{})
+func New(ctx context.Context, c *tlc.Container, basePath string) (lake.Pool, error) {
+	return NewWithOptions(ctx, c, basePath, Options{})
 }
 
 // NewWithOptions is New with control over how ZIP entries are spooled.
-func NewWithOptions(c *tlc.Container, basePath string, opts Options) (lake.Pool, error) {
+func NewWithOptions(ctx context.Context, c *tlc.Container, basePath string, opts Options) (lake.Pool, error) {
 	if basePath == "/dev/null" {
 		return fspool.New(c, basePath), nil
 	}
 
-	fr, err := eos.Open(basePath)
+	fr, err := eos.Open(ctx, basePath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

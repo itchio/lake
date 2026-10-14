@@ -2,6 +2,7 @@ package tlc
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -266,7 +267,7 @@ func Test_WalkIgnore(t *testing.T) {
 	must(t, compressZip(archive, tmpPath, &state.Consumer{}))
 	archive.Close()
 
-	container, err = WalkAny(archiveName, walkOpts)
+	container, err = WalkAny(context.Background(), archiveName, walkOpts)
 	must(t, err)
 	verifyContainer(container)
 }

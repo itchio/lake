@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/itchio/arkive v0.0.0-20260424164943-5eabdbdce5c8
 	github.com/itchio/headway v0.0.0-20251229214354-da882c8b5dd4
-	github.com/itchio/httpkit v0.0.0-20260213231528-25109ada88c9
+	github.com/itchio/httpkit v0.0.0-20261014001543-804157f68bf3
 	github.com/itchio/screw v0.0.0-20260221011136-e674b460b040
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1

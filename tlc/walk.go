@@ -1,6 +1,7 @@
 package tlc
 
 import (
+	"context"
 	stderrors "errors"
 	"fmt"
 	"io/ioutil"
@@ -146,13 +147,13 @@ func (opts *WalkOpts) normalizeContainerPath(containerPathPtr *string) bool {
 
 // WalkAny tries to retrieve container information on containerPath. It supports:
 // the empty container (/dev/null), local directories, zip archives, or single files
-func WalkAny(containerPath string, opts WalkOpts) (*Container, error) {
+func WalkAny(ctx context.Context, containerPath string, opts WalkOpts) (*Container, error) {
 	// empty container case
 	if containerPath == NullPath {
 		return &Container{}, nil
 	}
 
-	file, err := eos.Open(containerPath)
+	file, err := eos.Open(ctx, containerPath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

@@ -2,6 +2,7 @@ package pools_test
 
 import (
 	"archive/zip"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,10 +17,10 @@ func TestNewWithZipOptions(t *testing.T) {
 	root := t.TempDir()
 	archivePath := filepath.Join(root, "game.zip")
 	writeZip(t, archivePath)
-	container, err := tlc.WalkAny(archivePath, tlc.WalkOpts{})
+	container, err := tlc.WalkAny(context.Background(), archivePath, tlc.WalkOpts{})
 	must(t, err)
 	scratch := t.TempDir()
-	pool, err := pools.NewWithOptions(container, archivePath, pools.Options{
+	pool, err := pools.NewWithOptions(context.Background(), container, archivePath, pools.Options{
 		Zip: zippool.Options{MaxMemory: 4, TempDir: scratch},
 	})
 	must(t, err)
@@ -52,9 +53,9 @@ func TestZipOptionsIgnoredForFilesystem(t *testing.T) {
 	must(t, os.WriteFile(path, []byte("game contents"), 0600))
 	for _, src := range []string{root, path} {
 		t.Run(filepath.Base(src), func(t *testing.T) {
-			container, err := tlc.WalkAny(src, tlc.WalkOpts{})
+			container, err := tlc.WalkAny(context.Background(), src, tlc.WalkOpts{})
 			must(t, err)
-			pool, err := pools.NewWithOptions(container, src, pools.Options{
+			pool, err := pools.NewWithOptions(context.Background(), container, src, pools.Options{
 				Zip: zippool.Options{MaxMemory: 1, TempDir: filepath.Join(root, "does-not-exist")},
 			})
 			must(t, err)
@@ -104,9 +105,9 @@ func writeZip(t *testing.T, path string) {
 func TestZipPoolClosesArchive(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "game.zip")
 	writeZip(t, archivePath)
-	container, err := tlc.WalkAny(archivePath, tlc.WalkOpts{})
+	container, err := tlc.WalkAny(context.Background(), archivePath, tlc.WalkOpts{})
 	must(t, err)
-	pool, err := pools.New(container, archivePath)
+	pool, err := pools.New(context.Background(), container, archivePath)
 	must(t, err)
 	r, err := pool.GetReader(0)
 	must(t, err)
@@ -126,7 +127,7 @@ func TestZipPoolClosesArchive(t *testing.T) {
 func TestZipPoolClosesArchiveOnOpenError(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "bad.zip")
 	must(t, os.WriteFile(archivePath, []byte("not a zip"), 0600))
-	if _, err := pools.New(&tlc.Container{}, archivePath); err == nil {
+	if _, err := pools.New(context.Background(), &tlc.Container{}, archivePath); err == nil {
 		t.Fatal("expected an error opening a bad zip")
 	}
 	if n := openHandles(t, archivePath); n > 0 {
