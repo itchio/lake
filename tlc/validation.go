@@ -12,9 +12,15 @@ type humanPrintable interface {
 	ToString() string
 }
 
-// Validate verifies that the container doesn't contain wildly invalid
-// stuff, like a directory and a file having the same name
+// Validate verifies that the container is safe to extract and doesn't contain
+// wildly invalid stuff, like a directory and a file having the same name.
+// Unsafe entries are reported with an error wrapping ErrUnsafePaths.
 func (container *Container) Validate() error {
+	// the checks below are quadratic in path length, which validatePaths bounds
+	if err := container.validatePaths(); err != nil {
+		return err
+	}
+
 	paths := make(map[string]humanPrintable)
 
 	type errorBuffer struct {

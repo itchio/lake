@@ -77,8 +77,8 @@ func ContainedSymlinkTarget(base, linkDiskPath, dest string) error {
 }
 
 // ValidatePath is the lexical half of ContainedPath: a relative, slash
-// separated path with no empty, "." or ".." components. Trailing dots and
-// spaces are trimmed first because Win32 drops them, so ".. " is "..".
+// separated path with no empty, "." or ".." components, including ones
+// Win32 resolves to those, like ".. ".
 func ValidatePath(p string) error {
 	switch {
 	case p == "":
@@ -87,8 +87,7 @@ func ValidatePath(p string) error {
 		return fmt.Errorf("%w: %q", ErrPathEscape, p)
 	}
 	for component := range strings.SplitSeq(p, "/") {
-		switch strings.TrimRight(component, ". ") {
-		case "", ".", "..":
+		if isDotsComponent(component) {
 			return fmt.Errorf("%w: %q", ErrPathEscape, p)
 		}
 		if isWindowsDeviceName(component) {
@@ -132,24 +131,36 @@ func rejectSymlinkParents(absBase, p string) error {
 	return nil
 }
 
+// isDotsComponent reports whether a path component is empty or only dots and
+// spaces. Win32 drops trailing dots and spaces, so ".. " and "..." resolve to
+// ".." or the current directory instead of a name.
+func isDotsComponent(c string) bool {
+	return strings.TrimRight(c, ". ") == ""
+}
+
 func hasDriveLetter(p string) bool {
 	return len(p) >= 2 && p[1] == ':' &&
 		(('a' <= p[0] && p[0] <= 'z') || ('A' <= p[0] && p[0] <= 'Z'))
 }
 
 // Win32 treats these basenames as devices in any directory and with any
-// extension; a write to them never reaches a file.
+// extension; a write to them never reaches a file. Trailing dots and spaces
+// are dropped first, as Win32 does, so "nul " and "com1." are devices too.
 func isWindowsDeviceName(component string) bool {
-	base := strings.ToUpper(component)
+	base := strings.ToUpper(strings.TrimRight(component, ". "))
 	if i := strings.IndexByte(base, '.'); i >= 0 {
 		base = base[:i]
 	}
+	base = strings.TrimRight(base, " ")
 	switch base {
-	case "CON", "PRN", "AUX", "NUL":
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
 		return true
 	}
-	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) {
-		return '1' <= base[3] && base[3] <= '9'
+	if strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT") {
+		switch base[3:] {
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9", "¹", "²", "³":
+			return true
+		}
 	}
 	return false
 }

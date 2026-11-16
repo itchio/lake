@@ -9,6 +9,7 @@ require (
 	github.com/itchio/screw v0.0.0-20260221011136-e674b460b040
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/text v0.33.0
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -37,6 +38,5 @@ require (
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
