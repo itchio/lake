@@ -353,14 +353,16 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 			basePathIn = filepath.Join(basePathIn, opts.WrappedDir)
 		}
 
-		// link targets are resolved, so the base must be too for a link
-		// back to it to be caught
-		resolvedBase, err := filepath.EvalSymlinks(basePathIn)
-		if err != nil {
-			return nil, errors.WithStack(err)
+		// Link targets are resolved, so the base must be too for a link
+		// back to it to be caught. Only dereferencing walks need this, and
+		// EvalSymlinks fails on some Windows volumes that walk fine.
+		if opts.Dereference {
+			resolvedBase, err := filepath.EvalSymlinks(basePathIn)
+			if err != nil {
+				resolvedBase = basePathIn
+			}
+			currentlyWalking[resolvedBase] = true
 		}
-
-		currentlyWalking[resolvedBase] = true
 		err = filepath.Walk(basePathIn, makeEntryCallback(basePathIn, baseName, false))
 		if err != nil {
 			return nil, errors.WithStack(err)
