@@ -112,7 +112,7 @@ func TestPrepareRefusesEscapes(t *testing.T) {
 		{Symlinks: []*Symlink{{Path: "../victim.txt", Dest: "x", Mode: 0o777 | uint32(os.ModeSymlink)}}},
 		{Symlinks: []*Symlink{{Path: "link", Dest: "/etc/hostname", Mode: 0o777 | uint32(os.ModeSymlink)}}},
 	} {
-		if err := c.Prepare(base); !errors.Is(err, ErrPathEscape) {
+		if err := c.Prepare(t.Context(), base); !errors.Is(err, ErrPathEscape) {
 			t.Errorf("accepted: %+v (%v)", c, err)
 		}
 	}
@@ -137,7 +137,7 @@ func TestPrepareDirReplacesForeignLeafSymlink(t *testing.T) {
 		t.Skip(err)
 	}
 	c := &Container{Dirs: []*Dir{{Path: "d", Mode: 0o777 | uint32(os.ModeDir)}}}
-	if err := c.Prepare(base); err != nil {
+	if err := c.Prepare(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	if stat, _ := os.Stat(outside); stat.Mode().Perm() != 0o700 {
@@ -156,7 +156,7 @@ func TestPrepareReplacesForeignLeafSymlink(t *testing.T) {
 		t.Skip(err)
 	}
 	c := &Container{Files: []*File{{Path: "f", Mode: 0o644, Size: 0}}}
-	if err := c.Prepare(base); err != nil {
+	if err := c.Prepare(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(outside); string(data) != "secret" {

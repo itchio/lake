@@ -167,7 +167,7 @@ func WalkAny(ctx context.Context, containerPath string, opts WalkOpts) (*Contain
 
 	if stat.IsDir() {
 		// local directory case
-		return WalkDir(containerPath, opts)
+		return WalkDir(ctx, containerPath, opts)
 	}
 
 	// zip archive case
@@ -178,7 +178,7 @@ func WalkAny(ctx context.Context, containerPath string, opts WalkOpts) (*Contain
 		if err != nil && !stderrors.Is(err, zip.ErrInsecurePath) {
 			return nil, errors.WithStack(err)
 		}
-		return WalkZip(zr, opts)
+		return WalkZip(ctx, zr, opts)
 	}
 
 	// single file case
@@ -211,7 +211,7 @@ func WalkSingle(file eos.File) (*Container, error) {
 }
 
 // WalkDir retrieves information on all files, directories, and symlinks in a directory
-func WalkDir(basePathIn string, opts WalkOpts) (*Container, error) {
+func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container, error) {
 	filter := opts.GetFilter()
 
 	var Dirs []*Dir
@@ -234,6 +234,10 @@ func WalkDir(basePathIn string, opts WalkOpts) (*Container, error) {
 				} else {
 					return errors.WithStack(err)
 				}
+			}
+
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 
 			Path, err := filepath.Rel(BasePath, FullPath)
@@ -355,7 +359,7 @@ func WalkDir(basePathIn string, opts WalkOpts) (*Container, error) {
 
 // WalkZip walks all file in a zip archive and returns a container
 // Note: WalkZip does not respect filter
-func WalkZip(zr *zip.Reader, opts WalkOpts) (*Container, error) {
+func WalkZip(ctx context.Context, zr *zip.Reader, opts WalkOpts) (*Container, error) {
 	filter := opts.GetFilter()
 
 	if opts.Dereference {
@@ -372,6 +376,10 @@ func WalkZip(zr *zip.Reader, opts WalkOpts) (*Container, error) {
 
 eachFile:
 	for _, file := range zr.File {
+		if err := ctx.Err(); err != nil {
+			return nil, errors.WithStack(err)
+		}
+
 		// Normalize backslashes from Windows-created zips
 		fileName := strings.ReplaceAll(file.Name, `\`, `/`)
 		fileName = path.Clean(fileName)

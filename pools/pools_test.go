@@ -26,7 +26,7 @@ func Test_Close(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(tmpPath, "hello.txt"), contents, os.FileMode(0o644))
 	must(t, err)
 
-	container, err := tlc.WalkDir(tmpPath, tlc.WalkOpts{})
+	container, err := tlc.WalkDir(t.Context(), tmpPath, tlc.WalkOpts{})
 	must(t, err)
 
 	testPool := func(p lake.Pool) {

@@ -30,7 +30,7 @@ func Test_NonDirWalk(t *testing.T) {
 	must(t, err)
 	must(t, f.Close())
 
-	_, err = WalkDir(f.Name(), WalkOpts{})
+	_, err = WalkDir(t.Context(), f.Name(), WalkOpts{})
 	assert.NotNil(t, err, "should refuse to walk non-directory")
 }
 
@@ -42,7 +42,7 @@ func Test_WalkZip(t *testing.T) {
 	must(t, err)
 	defer os.RemoveAll(tmpPath2)
 
-	container, err := WalkDir(tmpPath, WalkOpts{})
+	container, err := WalkDir(t.Context(), tmpPath, WalkOpts{})
 	must(t, err)
 
 	zipPath := path.Join(tmpPath2, "container.zip")
@@ -59,7 +59,7 @@ func Test_WalkZip(t *testing.T) {
 	zipReader, err := zip.NewReader(zipWriter, zipSize)
 	must(t, err)
 
-	zipContainer, err := WalkZip(zipReader, WalkOpts{})
+	zipContainer, err := WalkZip(t.Context(), zipReader, WalkOpts{})
 	must(t, err)
 
 	if testSymlinks {
@@ -94,7 +94,7 @@ func Test_WalkZipFileUsedAsDir(t *testing.T) {
 	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 	must(t, err)
 
-	container, err := WalkZip(zr, WalkOpts{})
+	container, err := WalkZip(t.Context(), zr, WalkOpts{})
 	must(t, err)
 
 	err = container.Validate()
@@ -116,7 +116,7 @@ func Test_WalkZipSparseDirs(t *testing.T) {
 	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 	must(t, err)
 
-	container, err := WalkZip(zr, WalkOpts{})
+	container, err := WalkZip(t.Context(), zr, WalkOpts{})
 	must(t, err)
 
 	var dirs []string
@@ -133,7 +133,7 @@ func Test_Walk(t *testing.T) {
 	tmpPath := mktestdir(t, "walk")
 	defer os.RemoveAll(tmpPath)
 
-	container, err := WalkDir(tmpPath, WalkOpts{})
+	container, err := WalkDir(t.Context(), tmpPath, WalkOpts{})
 	must(t, err)
 
 	dirs := []string{
@@ -176,7 +176,7 @@ func Test_Walk(t *testing.T) {
 	assert.Equal(t, totalSize, container.Size, "should report correct size")
 
 	if testSymlinks {
-		container, err := WalkDir(tmpPath, WalkOpts{Dereference: true})
+		container, err := WalkDir(t.Context(), tmpPath, WalkOpts{Dereference: true})
 		must(t, err)
 
 		assert.EqualValues(t, 0, len(container.Symlinks), "when dereferencing, no symlinks should be listed")
@@ -247,7 +247,7 @@ func Test_WalkIgnore(t *testing.T) {
 		Filter: loggingFilter,
 	}
 
-	container, err := WalkDir(tmpPath, walkOpts)
+	container, err := WalkDir(t.Context(), tmpPath, walkOpts)
 	must(t, err)
 	verifyContainer(container)
 
@@ -276,17 +276,17 @@ func Test_Prepare(t *testing.T) {
 	tmpPath := mktestdir(t, "prepare")
 	defer os.RemoveAll(tmpPath)
 
-	container, err := WalkDir(tmpPath, WalkOpts{})
+	container, err := WalkDir(t.Context(), tmpPath, WalkOpts{})
 	must(t, err)
 
 	tmpPath2, err := ioutil.TempDir("", "prepare")
 	defer os.RemoveAll(tmpPath2)
 	must(t, err)
 
-	err = container.Prepare(tmpPath2)
+	err = container.Prepare(t.Context(), tmpPath2)
 	must(t, err)
 
-	container2, err := WalkDir(tmpPath2, WalkOpts{})
+	container2, err := WalkDir(t.Context(), tmpPath2, WalkOpts{})
 	must(t, err)
 
 	must(t, container.EnsureEqual(container2))
@@ -432,4 +432,15 @@ func compressZip(archiveWriter io.Writer, dir string, consumer *state.Consumer) 
 	}
 	zipWriter = nil
 	return nil
+}
+
+func Test_WalkDirCancelled(t *testing.T) {
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "file"), []byte("hello"), 0o644))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := WalkDir(ctx, dir, WalkOpts{})
+	assert.ErrorIs(t, err, context.Canceled)
 }

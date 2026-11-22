@@ -33,7 +33,7 @@ func Test_FixPermissions(t *testing.T) {
 	for _, f := range pool.files {
 		c.Files = append(c.Files, &File{Mode: 0o644, Size: int64(len(f))})
 	}
-	if err := c.FixPermissions(pool); err != nil {
+	if err := c.FixPermissions(t.Context(), pool); err != nil {
 		t.Fatal(err)
 	}
 	if c.Files[0].Mode != 0o755 {

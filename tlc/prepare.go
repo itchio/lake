@@ -1,20 +1,25 @@
 package tlc
 
 import (
+	"context"
 	"os"
 
 	"github.com/pkg/errors"
 )
 
 // Prepare creates all directories, files, and symlinks.
-// It also applies the proper permissions if the files already exist
-func (c *Container) Prepare(basePath string) error {
+// It also applies the proper permissions if the files already exist.
+// Cancelling ctx leaves the entries created so far in place.
+func (c *Container) Prepare(ctx context.Context, basePath string) error {
 	err := os.MkdirAll(basePath, 0o755)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	for _, dirEntry := range c.Dirs {
+		if err := ctx.Err(); err != nil {
+			return errors.WithStack(err)
+		}
 		err := c.prepareDir(basePath, dirEntry)
 		if err != nil {
 			return errors.WithStack(err)
@@ -22,6 +27,9 @@ func (c *Container) Prepare(basePath string) error {
 	}
 
 	for _, fileEntry := range c.Files {
+		if err := ctx.Err(); err != nil {
+			return errors.WithStack(err)
+		}
 		err := c.prepareFile(basePath, fileEntry)
 		if err != nil {
 			return errors.WithStack(err)
@@ -29,6 +37,9 @@ func (c *Container) Prepare(basePath string) error {
 	}
 
 	for _, link := range c.Symlinks {
+		if err := ctx.Err(); err != nil {
+			return errors.WithStack(err)
+		}
 		err := c.prepareSymlink(basePath, link)
 		if err != nil {
 			return errors.WithStack(err)

@@ -1,6 +1,7 @@
 package tlc
 
 import (
+	"context"
 	"io"
 
 	"github.com/itchio/lake"
@@ -11,9 +12,12 @@ const minScannedFileSize = 4
 
 // FixPermissions marks files with executable magic as executable. The pool
 // stays open; the caller owns it.
-func (c *Container) FixPermissions(pool lake.Pool) error {
+func (c *Container) FixPermissions(ctx context.Context, pool lake.Pool) error {
 	buf := make([]byte, minScannedFileSize)
 	for index, f := range c.Files {
+		if err := ctx.Err(); err != nil {
+			return errors.WithStack(err)
+		}
 		if f.Size < minScannedFileSize {
 			continue
 		}
