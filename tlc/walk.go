@@ -222,9 +222,11 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 
 	TotalOffset := int64(0)
 
-	var makeEntryCallback func(BasePath string, LocationPath string) filepath.WalkFunc
+	var makeEntryCallback func(BasePath string, LocationPath string, linked bool) filepath.WalkFunc
 
-	makeEntryCallback = func(BasePath string, LocationPath string) filepath.WalkFunc {
+	// linked is set when walking the target of a dereferenced symlink. The
+	// walk that found the link records it, under the link's own name.
+	makeEntryCallback = func(BasePath string, LocationPath string, linked bool) filepath.WalkFunc {
 		return func(FullPath string, fileInfo os.FileInfo, err error) error {
 			// we shouldn't encounter any error crawling the repo
 			if err != nil {
@@ -234,6 +236,15 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 				} else {
 					return errors.WithStack(err)
 				}
+			}
+
+			// lstat failed, so there is nothing to record
+			if fileInfo == nil {
+				return nil
+			}
+
+			if linked && FullPath == BasePath {
+				return nil
 			}
 
 			if err := ctx.Err(); err != nil {
@@ -253,6 +264,16 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 				return nil
 			}
 
+			// A symlink keeps its own name when dereferenced, so filter
+			// before following it. Walk sees a link as a file, where
+			// SkipDir would drop the rest of the parent directory.
+			if filter(fileInfo.Name()) == FilterIgnore {
+				if fileInfo.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
 			// os.Walk does not follow symlinks, so we must do it
 			// manually if Dereference is set
 			if opts.Dereference && fileInfo.Mode()&os.ModeSymlink > 0 {
@@ -262,19 +283,12 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 				}
 
 				if fileInfo.Mode().IsDir() {
-					Dest, err := os.Readlink(FullPath)
+					// Resolve every hop: Walk only descends into a root
+					// that is a real directory.
+					CleanDest, err := filepath.EvalSymlinks(FullPath)
 					if err != nil {
 						return errors.WithStack(err)
 					}
-
-					var JoinedDest string
-					if filepath.IsAbs(Dest) {
-						JoinedDest = Dest
-					} else {
-						JoinedDest = filepath.Join(filepath.Dir(FullPath), Dest)
-					}
-
-					CleanDest := filepath.Clean(JoinedDest)
 
 					if currentlyWalking[CleanDest] {
 						err := fmt.Errorf("symlinks recurse onto %s, cowardly refusing to walk infinite container", CleanDest)
@@ -282,7 +296,7 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 					}
 
 					currentlyWalking[CleanDest] = true
-					err = filepath.Walk(CleanDest, makeEntryCallback(CleanDest, Path))
+					err = filepath.Walk(CleanDest, makeEntryCallback(CleanDest, Path, true))
 					delete(currentlyWalking, CleanDest)
 					if err != nil {
 						return errors.WithStack(err)
@@ -292,13 +306,6 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 
 			// don't end up with files we (the patcher) can't modify
 			Mode := fileInfo.Mode() | ModeMask
-
-			if filter(fileInfo.Name()) == FilterIgnore {
-				if Mode.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
 
 			if Mode.IsDir() {
 				Dirs = append(Dirs, &Dir{Path: Path, Mode: uint32(Mode)})
@@ -346,8 +353,15 @@ func WalkDir(ctx context.Context, basePathIn string, opts WalkOpts) (*Container,
 			basePathIn = filepath.Join(basePathIn, opts.WrappedDir)
 		}
 
-		currentlyWalking[basePathIn] = true
-		err = filepath.Walk(basePathIn, makeEntryCallback(basePathIn, baseName))
+		// link targets are resolved, so the base must be too for a link
+		// back to it to be caught
+		resolvedBase, err := filepath.EvalSymlinks(basePathIn)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		currentlyWalking[resolvedBase] = true
+		err = filepath.Walk(basePathIn, makeEntryCallback(basePathIn, baseName, false))
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}

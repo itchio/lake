@@ -444,3 +444,72 @@ func Test_WalkDirCancelled(t *testing.T) {
 	_, err := WalkDir(ctx, dir, WalkOpts{})
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func Test_WalkDereferenceDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on windows")
+	}
+
+	target := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(target, "inner"), []byte("hello"), 0o644))
+
+	dir := t.TempDir()
+	must(t, os.Symlink(target, filepath.Join(dir, "a_ignored")))
+	must(t, os.Symlink(target, filepath.Join(dir, "b_link")))
+	must(t, os.WriteFile(filepath.Join(dir, "c_file"), []byte("hello"), 0o644))
+
+	// a link to a link to a directory
+	hop := filepath.Join(t.TempDir(), "hop")
+	must(t, os.Symlink(target, hop))
+	must(t, os.Symlink(hop, filepath.Join(dir, "d_chained")))
+
+	container, err := WalkDir(t.Context(), dir, WalkOpts{
+		Dereference: true,
+		Filter: func(name string) FilterResult {
+			if name == "a_ignored" {
+				return FilterIgnore
+			}
+			return FilterKeep
+		},
+	})
+	must(t, err)
+	must(t, container.Validate())
+
+	var paths []string
+	container.ForEachEntry(func(e Entry) ForEachOutcome {
+		paths = append(paths, e.GetPath())
+		return ForEachContinue
+	})
+	sort.Strings(paths)
+	assert.Equal(t, []string{"b_link", "b_link/inner", "c_file", "d_chained", "d_chained/inner"}, paths)
+}
+
+func Test_WalkDereferenceLoop(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on windows")
+	}
+
+	dir := t.TempDir()
+	must(t, os.Symlink(dir, filepath.Join(dir, "loop")))
+
+	_, err := WalkDir(t.Context(), dir, WalkOpts{Dereference: true})
+	assert.ErrorContains(t, err, "symlinks recurse")
+}
+
+func Test_WalkUnsearchableDir(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("needs a directory whose entries can't be stat'd")
+	}
+
+	dir := t.TempDir()
+	locked := filepath.Join(dir, "locked")
+	must(t, os.Mkdir(locked, 0o755))
+	must(t, os.WriteFile(filepath.Join(locked, "inner"), []byte("hello"), 0o644))
+	must(t, os.Chmod(locked, 0o444))
+	defer os.Chmod(locked, 0o755)
+
+	container, err := WalkDir(t.Context(), dir, WalkOpts{})
+	must(t, err)
+	assert.Empty(t, container.Files)
+	assert.Len(t, container.Dirs, 1)
+}
